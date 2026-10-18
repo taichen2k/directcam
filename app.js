@@ -95,7 +95,7 @@ async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 }, zoom: true },
     });
   } catch (e) {
     setStatus('cam', '카메라를 쓸 수 없음', 'off');
@@ -119,6 +119,20 @@ async function startCamera() {
   }
   $('camTorch').hidden = !torchOK;
   $('camTorch').onclick = () => setTorch(!torchOn);
+
+  // 확대·축소: 카메라가 지원하면 실제 카메라 줌, 아니면 모니터 폰에서 디지털 줌
+  const zoomCap = caps.zoom && caps.zoom.max > caps.zoom.min
+    ? { min: caps.zoom.min, max: Math.min(caps.zoom.max, caps.zoom.min * 10), step: caps.zoom.step || 0.1 } : null;
+  let zoomTimer = null, zoomWant = zoomCap ? (track.getSettings().zoom || zoomCap.min) : 1;
+  function setZoom(z) {
+    if (!zoomCap) return;
+    zoomWant = Math.min(zoomCap.max, Math.max(zoomCap.min, z));
+    if (zoomTimer) return; // 너무 잦은 변경은 묶어서 처리
+    zoomTimer = setTimeout(async () => {
+      zoomTimer = null;
+      try { await track.applyConstraints({ advanced: [{ zoom: zoomWant }] }); } catch {}
+    }, 60);
+  }
 
   let conn = null, call = null;
   const send = (m) => { try { if (conn?.open) conn.send(m); } catch {} };
@@ -206,12 +220,13 @@ async function startCamera() {
         call = peer.call(c.peer, stream);
         setStatus('cam', '모니터폰 연결됨', 'on');
         showPairing(false);
-        send({ t: 'hello', torch: torchOK, torchOn });
+        send({ t: 'hello', torch: torchOK, torchOn, zoom: zoomCap && { ...zoomCap, value: zoomWant } });
       });
       c.on('data', (m) => {
         if (!m || typeof m !== 'object') return;
         if (m.t === 'shoot') shoot(true);
         else if (m.t === 'torch') setTorch(!!m.on);
+        else if (m.t === 'zoom') setZoom(Number(m.value));
       });
       const lost = () => {
         if (conn !== c) return;
@@ -239,6 +254,7 @@ function startMonitor(code) {
   let timer = Number(store.get('dc_timer') || 0);
   let torchOn = false, torchOK = false, busy = false;
   const send = (m) => { try { if (conn?.open) conn.send(m); } catch {} };
+  let zoomHW = null, zoom = 1; // zoomHW: 카메라 줌 범위 (없으면 디지털 줌 1~4배)
 
   const last = store.get('dc_last_cam');
   $('lastCam').hidden = !last;
@@ -316,6 +332,8 @@ function startMonitor(code) {
     if (m.t === 'hello') {
       torchOK = !!m.torch; torchOn = !!m.torchOn;
       $('tTorch').disabled = !torchOK; $('tTorch').classList.toggle('on', torchOn);
+      zoomHW = m.zoom || null;
+      setupZoom(zoomHW ? zoomHW.value : 1);
     } else if (m.t === 'state') {
       torchOn = !!m.torch; $('tTorch').classList.toggle('on', torchOn);
     } else if (m.t === 'busy') {
@@ -333,7 +351,7 @@ function startMonitor(code) {
 
   async function receivePhoto(m) {
     const raw = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    const blob = await finishPhoto(raw, new Date(m.time || Date.now()));
+    const blob = await finishPhoto(raw, new Date(m.time || Date.now()), zoomHW ? 1 : zoom);
     const url = URL.createObjectURL(blob);
     const img = document.createElement('img');
     img.src = url; img.alt = m.name;
@@ -369,6 +387,39 @@ function startMonitor(code) {
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
 
+  // 확대·축소: 슬라이더 + 두 손가락 벌리기/오므리기
+  const zRange = () => (zoomHW ? [zoomHW.min, zoomHW.max] : [1, 4]);
+  const zBase = () => (zoomHW ? zoomHW.min : 1);
+  function applyZoom(z, fromSlider) {
+    const [lo, hi] = zRange();
+    zoom = Math.min(hi, Math.max(lo, z));
+    const rel = zoom / zBase();
+    $('zLbl').textContent = (rel < 10 ? rel.toFixed(1) : Math.round(rel)) + 'x';
+    if (!fromSlider) $('zoom').value = zoom;
+    video.style.transform = zoomHW ? '' : `scale(${zoom})`;
+    if (zoomHW) send({ t: 'zoom', value: zoom });
+  }
+  function setupZoom(start) {
+    const [lo, hi] = zRange(), el = $('zoom');
+    el.min = lo; el.max = hi; el.step = zoomHW ? (zoomHW.step || 0.1) : 0.05;
+    $('zoomBar').hidden = false;
+    applyZoom(start);
+  }
+  $('zoom').oninput = (e) => applyZoom(Number(e.target.value), true);
+  $('zReset').onclick = () => applyZoom(zBase());
+  const pts = new Map(); let pinch = null;
+  const stage = $('monStage');
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  stage.addEventListener('pointerdown', (e) => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2 && connected) pinch = { d: dist(), z: zoom }; });
+  stage.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pts.size === 2) applyZoom(pinch.z * (dist() / pinch.d));
+  });
+  const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => stage.addEventListener(ev, up));
+  cleanup.push(() => { video.style.transform = ''; $('zoomBar').hidden = true; });
+
   const guideOn = store.get('dc_guide') !== '0'; // 기본값: 가이드 켜짐
   $('guide').hidden = !guideOn; $('tGuide').classList.toggle('on', guideOn);
   $('tGuide').onclick = () => {
@@ -382,12 +433,14 @@ function startMonitor(code) {
 
 /* ============================ 사진 처리 ============================ */
 // 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드) 새기기. 사진 방향은 폰이 찍은 그대로 유지
-async function finishPhoto(blob, date) {
+async function finishPhoto(blob, date, digitalZoom = 1) {
   const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  const z = Math.max(1, digitalZoom || 1);
+  const sw = Math.round(bmp.width / z), sh = Math.round(bmp.height / z);
   const c = document.createElement('canvas');
-  c.width = bmp.width; c.height = bmp.height;
+  c.width = sw; c.height = sh;
   const g = c.getContext('2d');
-  g.drawImage(bmp, 0, 0);
+  g.drawImage(bmp, Math.round((bmp.width - sw) / 2), Math.round((bmp.height - sh) / 2), sw, sh, 0, 0, sw, sh);
   const text = stamp(date).replace('_', ' '); // 사진 속 표기: 20261018 160412
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
