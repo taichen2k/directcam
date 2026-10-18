@@ -141,9 +141,19 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 #viewer .row{display:flex;gap:8px;padding:14px 16px;justify-content:center;flex-wrap:wrap}
 #viewer .row .btn{padding:14px 16px}
 .btn.danger{color:var(--rec);border-color:rgba(255,74,61,.5)}
+#peek{position:fixed;left:16px;bottom:calc(250px + env(safe-area-inset-bottom,0px));z-index:25;width:84px;height:112px;object-fit:cover;border-radius:12px;border:2px solid var(--ok);box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#saveSheet{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:520px;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;display:flex;flex-direction:column;gap:12px;
+  padding:20px max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+.sheet b{font-size:18px}
+.sheet p{margin:0;color:var(--dim);font-size:14px;line-height:1.6}
+.sheet .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;max-height:40vh;overflow-y:auto}
+.sheet .thumbs img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px}
+.sheet .row{display:flex;gap:8px}
+.sheet .row .btn{flex:1}
 
 .toast{position:fixed;left:50%;bottom:calc(250px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:rgba(22,26,24,.95);
-  border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
+  border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;max-width:calc(100% - 32px);text-align:center}
 @media (prefers-reduced-motion:reduce){*:not(.dot){animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -176,7 +186,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b></p>
   </div>
   </div>
-  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v16</p>
+  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v17</p>
 </section>
 
 <!-- 카메라폰 -->
@@ -246,16 +256,24 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 <div id="viewer" hidden>
   <img id="viewImg" alt="촬영한 사진">
   <div class="row">
-    <button class="btn ghost" id="vSave">이 폰에 저장</button>
-    <button class="btn ghost" id="vShare">공유</button>
+    <button class="btn" id="vSave">이 폰에 저장</button>
     <button class="btn ghost danger" id="vDelete">삭제</button>
-    <button class="btn" id="vClose">닫기</button>
+    <button class="btn ghost" id="vClose">닫기</button>
+  </div>
+</div>
+<img id="peek" alt="방금 찍은 사진" hidden>
+<div id="saveSheet" hidden>
+  <div class="sheet">
+    <b>이번에 찍은 사진 <span id="sheetCount">0</span>장</b>
+    <p>카메라 폰에 자동으로 저장했습니다. 브라우저 설정 때문에 저장되지 않았다면 「모두 저장」을 눌러 주세요.</p>
+    <div class="thumbs" id="sheetThumbs"></div>
+    <div class="row"><button class="btn" id="sheetSave">모두 저장</button><button class="btn ghost" id="sheetClose">닫기</button></div>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
