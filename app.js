@@ -67,12 +67,12 @@ let stampOn = store.get('dc_stamp') !== '0';
 function syncStampButtons() {
   document.querySelectorAll('[data-stamp]').forEach((b) => {
     b.classList.toggle('on', stampOn);
-    const l = b.querySelector('span') || b; l.textContent = stampOn ? '날짜 켬' : '날짜 끔';
+    b.setAttribute('aria-pressed', stampOn ? 'true' : 'false');
   });
 }
 document.querySelectorAll('[data-stamp]').forEach((b) => b.addEventListener('click', () => {
   stampOn = !stampOn; store.set('dc_stamp', stampOn ? '1' : '0'); syncStampButtons();
-  toast(stampOn ? '사진에 날짜를 넣습니다' : '사진에 날짜를 넣지 않습니다');
+  toast(stampOn ? '날짜 표시 켬: 사진에 날짜를 넣습니다' : '날짜 표시 끔: 사진에 날짜를 넣지 않습니다');
 }));
 syncStampButtons();
 
@@ -133,7 +133,7 @@ async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 }, zoom: true },
+      video: { facingMode: { ideal: 'environment' }, aspectRatio: { ideal: 4 / 3 }, width: { ideal: 1920 }, height: { ideal: 1440 }, frameRate: { ideal: 30 }, zoom: true },
     });
   } catch (e) {
     setStatus('cam', '카메라를 쓸 수 없음', 'off');
@@ -212,24 +212,23 @@ async function startCamera() {
     return blob;
   }
 
-  async function shoot(fromRemote) {
+  // 사진은 카메라 폰에 저장. 모니터 폰에서 찍으면 모니터 화면 설정(확대·좌우 반전·날짜 표시)대로 만들고 미리보기를 보냄
+  async function shoot(opt) {
     flash($('camFlash'));
     send({ t: 'busy' });
     const shotAt = new Date();
     const name = `${stamp(shotAt)}.jpg`;
-    const blob = await takePhoto();
-    if (!blob) { send({ t: 'error', msg: '촬영 실패' }); return; }
-    const aspect = video.videoWidth / video.videoHeight;
-    if (fromRemote && conn?.open) {
-      const buf = await blob.arrayBuffer();
-      send({ t: 'photo', name, time: shotAt.getTime(), type: blob.type || 'image/jpeg', aspect, buf });
-    } else {
-      const view = visibleFrac(video.parentElement, video.videoWidth, video.videoHeight, 1);
-      saveBlob(await finishPhoto(blob, shotAt, { aspect, ...view }), name);
-      toast('이 폰에 저장했습니다');
-    }
+    const raw = await takePhoto();
+    if (!raw) { send({ t: 'error', msg: '촬영 실패' }); return; }
+    const photo = await finishPhoto(raw, shotAt, {
+      aspect: video.videoWidth / video.videoHeight, fx: Number(opt?.fx) || 1, fy: Number(opt?.fy) || 1,
+      mirror: !!opt?.mirror, stamp: opt && 'stamp' in opt ? !!opt.stamp : stampOn,
+    });
+    saveBlob(photo, name);
+    toast('사진을 저장했습니다');
+    if (opt && conn?.open) send({ t: 'photo', name, type: 'image/jpeg', buf: await photo.arrayBuffer() });
   }
-  $('camSelfShot').onclick = () => shoot(false);
+  $('camSelfShot').onclick = () => shoot(null);
 
   // 고정 ID: 한 번 연결한 모니터폰은 다음에도 같은 링크로 재접속 가능
   let myId = store.get('dc_cam_id') || ID_PREFIX + randCode();
@@ -274,7 +273,7 @@ async function startCamera() {
       c.on('data', (m) => {
         if (!m || typeof m !== 'object') return;
         if (m.t === 'bye') { goHome('모니터 폰이 종료되어 함께 종료했습니다'); return; }
-        if (m.t === 'shoot') shoot(true);
+        if (m.t === 'shoot') shoot({ fx: m.fx, fy: m.fy, mirror: m.mirror, stamp: m.stamp });
         else if (m.t === 'torch') setTorch(!!m.on);
         else if (m.t === 'zoom') setZoom(Number(m.value));
       });
@@ -307,7 +306,6 @@ function startMonitor(code) {
   sayBye = () => send({ t: 'bye' });
   let zoomHW = null, zoom = 1; // zoomHW: 카메라 줌 범위 (없으면 디지털 줌 1~4배)
   let mirror = store.get('dc_mirror') !== '0'; // 좌우 반전(거울 모드), 기본 켜짐
-  let shotView = null; // 셔터를 누른 순간 화면에 보이던 범위
 
   const last = store.get('dc_last_cam');
   $('lastCam').hidden = !last;
@@ -403,18 +401,14 @@ function startMonitor(code) {
     }
   }
 
-  async function receivePhoto(m) {
-    const raw = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    const view = shotView || currentView();
-    shotView = null;
-    const blob = await finishPhoto(raw, new Date(m.time || Date.now()), { aspect: m.aspect, ...view });
+  function receivePhoto(m) {
+    const blob = new Blob([m.buf], { type: m.type || 'image/jpeg' });
     const url = URL.createObjectURL(blob);
     const img = document.createElement('img');
     img.src = url; img.alt = m.name;
     img.onclick = () => openViewer(blob, url, m.name);
     $('strip').prepend(img);
-    saveBlob(blob, m.name);
-    toast('사진을 저장했습니다 (다운로드 폴더)');
+    toast('카메라 폰에 저장했습니다');
   }
 
   // 셔터 + 타이머
@@ -438,8 +432,7 @@ function startMonitor(code) {
     }
     busy = true; $('shutter').classList.add('busy');
     navigator.vibrate?.(30);
-    shotView = currentView();
-    send({ t: 'shoot' });
+    send({ t: 'shoot', ...viewFrac(), mirror, stamp: stampOn });
     setTimeout(() => { if (busy) { busy = false; $('shutter').classList.remove('busy'); toast('응답이 없습니다. 다시 눌러 주세요'); } }, 20000);
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
@@ -477,13 +470,18 @@ function startMonitor(code) {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => stage.addEventListener(ev, up));
   cleanup.push(() => { video.style.transform = ''; $('zoomBar').hidden = true; });
 
+  // 지금 화면에 보이는 영상의 몫 (자르지 않고 전체 표시 + 디지털 확대일 때 가운데 부분)
+  function viewFrac() {
+    const z = zoomHW ? 1 : zoom, r = stage.getBoundingClientRect();
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh || !r.width || z <= 1) return { fx: 1 / z, fy: 1 / z };
+    const s = Math.min(r.width / vw, r.height / vh) * z;
+    return { fx: Math.min(1, r.width / (vw * s)), fy: Math.min(1, r.height / (vh * s)) };
+  }
   // 좌우 반전: 카메라 폰을 움직이는 방향과 화면이 같은 쪽으로 움직이게 함. 저장 사진에도 똑같이 적용
   function updateTransform() {
     const z = zoomHW ? 1 : zoom;
     video.style.transform = `scale(${mirror ? -z : z}, ${z})`;
-  }
-  function currentView() {
-    return { ...visibleFrac(stage, video.videoWidth, video.videoHeight, zoomHW ? 1 : zoom), mirror };
   }
   $('tMirror').classList.toggle('on', mirror);
   $('tMirror').onclick = () => {
@@ -504,15 +502,8 @@ function startMonitor(code) {
 }
 
 /* ============================ 사진 처리 ============================ */
-// 화면(꽉 채우기 + 확대)에 실제로 보이는 비율. fx·fy = 영상 가로·세로 중 화면에 보이는 몫
-function visibleFrac(el, vw, vh, z = 1) {
-  const r = el.getBoundingClientRect();
-  if (!vw || !vh || !r.width || !r.height) return { fx: 1 / z, fy: 1 / z };
-  const s = Math.max(r.width / vw, r.height / vh);
-  return { fx: Math.min(1, r.width / s / vw) / z, fy: Math.min(1, r.height / s / vh) / z };
-}
-// 화면에 보이던 범위 그대로 잘라 저장 + 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드)
-// opt.aspect: 화면 영상의 가로세로비 (고화질 사진은 화각이 더 넓어서 먼저 영상 비율로 맞춤)
+// 화면에 보이는 그대로 저장 + 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드)
+// 화면은 카메라 영상 전체를 자르지 않고 보여줌. opt.aspect: 영상 비율(사진과 다를 때만 맞춤), fx·fy: 확대 배율만큼의 가운데 몫
 async function finishPhoto(blob, date, opt = {}) {
   const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   const bw = bmp.width, bh = bmp.height;
@@ -527,7 +518,7 @@ async function finishPhoto(blob, date, opt = {}) {
   g.drawImage(bmp, Math.round((bw - cw) / 2), Math.round((bh - ch) / 2), cw, ch, 0, 0, cw, ch);
   g.setTransform(1, 0, 0, 1, 0, 0);
   bmp.close?.();
-  if (!stampOn) return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
+  if (!(opt.stamp ?? stampOn)) return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
   const text = stamp(date).replace('_', ' '); // 사진 속 표기: 20261018 160412
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
@@ -554,7 +545,7 @@ function openViewer(blob, url, name) {
   $('vShare').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: 'image/jpeg' })] }));
 }
 $('vClose').onclick = () => { $('viewer').hidden = true; viewing = null; };
-$('vSave').onclick = () => { if (viewing) { saveBlob(viewing.blob, viewing.name); toast('저장했습니다'); } };
+$('vSave').onclick = () => { if (viewing) { saveBlob(viewing.blob, viewing.name); toast('이 폰에도 저장했습니다'); } };
 $('vShare').onclick = async () => {
   if (!viewing) return;
   try { await navigator.share({ files: [new File([viewing.blob], viewing.name, { type: 'image/jpeg' })] }); } catch {}

@@ -63,9 +63,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--rec);outline-of
 .led.off{background:var(--rec)}
 
 /* 카메라폰 */
-/* 영상은 화면 전체를 채움. 방향은 폰의 자동 회전 설정을 그대로 따름 */
+/* 영상은 자르지 않고 전체를 보여줌(찍히는 사진과 동일). 방향은 폰의 자동 회전 설정을 그대로 따름 */
 .stage{position:absolute;inset:0;background:#000;overflow:hidden}
-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;display:block}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:block}
 .pair{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
   background:rgba(11,13,12,.86);padding:20px;text-align:center}
 .qr{background:#fff;padding:14px;border-radius:16px;line-height:0}
@@ -197,7 +197,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
   <div class="camtools">
     <button class="chip" id="camTorch" hidden>플래시</button>
     <button class="chip" id="camShowQr" hidden>QR 다시 보기</button>
-    <button class="chip" data-stamp>날짜 켬</button>
+    <button class="chip" data-stamp aria-pressed="true">날짜 표시</button>
     <button class="chip" id="camSelfShot">여기서 촬영</button>
   </div>
 </section>
@@ -232,7 +232,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
   <div class="dock">
     <div class="side">
       <button class="tool" id="tTimer"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2.5h6"/></svg><span id="tTimerLbl">타이머 끔</span></button>
-      <button class="tool" data-stamp><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>날짜 켬</span></button>
+      <button class="tool" data-stamp><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>날짜 표시</span></button>
       <button class="tool" id="tTorch" disabled><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M13 2 5 14h6l-1 8 8-12h-6z"/></svg><span>플래시</span></button>
     </div>
     <button class="shutter" id="shutter" disabled aria-label="촬영"></button>
@@ -246,7 +246,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
 <div id="viewer" hidden>
   <img id="viewImg" alt="촬영한 사진">
   <div class="row">
-    <button class="btn" id="vSave">다시 저장</button>
+    <button class="btn" id="vSave">이 폰에도 저장</button>
     <button class="btn ghost" id="vShare">공유</button>
     <button class="btn ghost" id="vClose">닫기</button>
   </div>
@@ -255,6 +255,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
