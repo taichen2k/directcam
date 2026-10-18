@@ -79,6 +79,18 @@ syncStampButtons();
 let mode = null;          // 'cam' | 'mon'
 let peer = null;
 let cleanup = [];
+let sayBye = null;        // 종료할 때 상대 폰에 알리는 함수
+
+// 화면 속 화면(팝업 플레이어)으로 앱이 계속 도는 것을 막음: 뜨면 바로 종료
+['camVideo', 'monVideo'].forEach((id) => {
+  const v = $(id);
+  v.disablePictureInPicture = true;
+  v.addEventListener('enterpictureinpicture', () => {
+    try { document.exitPictureInPicture?.().catch(() => {}); } catch {}
+    if (mode) goHome();
+  });
+});
+addEventListener('pagehide', () => { if (mode) goHome(); });
 
 function show(id) {
   for (const s of ['home', 'cam', 'mon']) $(s).hidden = s !== id;
@@ -96,11 +108,16 @@ const updateFsBtn = () => document.querySelectorAll('[data-fs]').forEach((b) => 
 document.addEventListener('fullscreenchange', updateFsBtn);
 document.querySelectorAll('[data-fs]').forEach((b) => b.addEventListener('click', enterFull));
 updateFsBtn();
-function goHome() {
+// 종료: 상대 폰에도 알려서 둘 다 함께 끝냄
+function goHome(msg) {
+  try { sayBye?.(); } catch {}
+  sayBye = null;
   cleanup.forEach((f) => { try { f(); } catch {} });
   cleanup = [];
-  try { peer?.destroy(); } catch {}
+  const p = peer;
+  setTimeout(() => { try { p?.destroy(); } catch {} }, 400); // 종료 알림이 상대에게 전달될 시간
   peer = null; mode = null;
+  if (typeof msg === 'string') setTimeout(() => toast(msg, 3500), 50);
   try { wakeLock?.release(); } catch {}
   exitFull();
   history.replaceState(null, '', location.pathname + (qs.get('sig') ? '?sig=' + qs.get('sig') : ''));
@@ -157,6 +174,7 @@ async function startCamera() {
 
   let conn = null, call = null;
   const send = (m) => { try { if (conn?.open) conn.send(m); } catch {} };
+  sayBye = () => send({ t: 'bye' });
 
   function showPairing(on) {
     $('camPair').hidden = !on;
@@ -255,6 +273,7 @@ async function startCamera() {
       });
       c.on('data', (m) => {
         if (!m || typeof m !== 'object') return;
+        if (m.t === 'bye') { goHome('모니터 폰이 종료되어 함께 종료했습니다'); return; }
         if (m.t === 'shoot') shoot(true);
         else if (m.t === 'torch') setTorch(!!m.on);
         else if (m.t === 'zoom') setZoom(Number(m.value));
@@ -285,6 +304,7 @@ function startMonitor(code) {
   let timer = Number(store.get('dc_timer') || 0);
   let torchOn = false, torchOK = false, busy = false;
   const send = (m) => { try { if (conn?.open) conn.send(m); } catch {} };
+  sayBye = () => send({ t: 'bye' });
   let zoomHW = null, zoom = 1; // zoomHW: 카메라 줌 범위 (없으면 디지털 줌 1~4배)
   let mirror = store.get('dc_mirror') !== '0'; // 좌우 반전(거울 모드), 기본 켜짐
   let shotView = null; // 셔터를 누른 순간 화면에 보이던 범위
@@ -348,7 +368,7 @@ function startMonitor(code) {
     });
     cn.on('data', onData);
     const lost = () => {
-      if (conn !== cn) return;
+      if (conn !== cn || mode !== 'mon') return; // 이미 종료한 뒤에는 재연결 안내를 띄우지 않음
       conn = null; busy = false; $('shutter').classList.remove('busy');
       if (connected) toast('연결이 끊겼습니다. 다시 연결하는 중…');
       setConnected(false);
@@ -362,6 +382,7 @@ function startMonitor(code) {
 
   function onData(m) {
     if (!m || typeof m !== 'object') return;
+    if (m.t === 'bye') { goHome('카메라 폰이 종료되어 함께 종료했습니다'); return; }
     if (m.t === 'hello') {
       torchOK = !!m.torch; torchOn = !!m.torchOn;
       $('tTorch').disabled = !torchOK; $('tTorch').classList.toggle('on', torchOn);
@@ -478,7 +499,7 @@ function startMonitor(code) {
     store.set('dc_guide', on ? '1' : '0');
   };
 
-  cleanup.push(() => { try { conn?.close(); } catch {} ; video.srcObject = null; });
+  cleanup.push(() => { video.srcObject = null; }); // 연결은 goHome에서 종료 알림 후 닫음
   if (code) connectTo(code);
 }
 

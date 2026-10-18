@@ -186,7 +186,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
     <button class="fs" data-fs aria-label="전체화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   </div>
   <div class="stage">
-    <video id="camVideo" playsinline muted autoplay></video>
+    <video id="camVideo" playsinline muted autoplay disablepictureinpicture></video>
     <div class="flash" id="camFlash"></div>
     <div class="pair" id="camPair">
       <div class="qr" id="qrBox"></div>
@@ -210,7 +210,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
     <button class="fs" data-fs aria-label="전체화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   </div>
   <div class="stage" id="monStage">
-    <video id="monVideo" playsinline muted autoplay></video>
+    <video id="monVideo" playsinline muted autoplay disablepictureinpicture></video>
     <div class="guide" id="guide" hidden><i></i></div>
     <div class="count" id="count" hidden></div>
     <div class="flash" id="monFlash"></div>
@@ -255,6 +255,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
