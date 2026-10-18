@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b0d0c">
+<title>DirectCam</title>
+<link rel="icon" href="icon.svg">
+<style>
+/* 카메라 계기판 콘셉트: 검은 화면 + 녹화등 같은 붉은 포인트, 큰 터치 영역 */
+:root{
+  --bg:#0b0d0c; --panel:#161a18; --line:#2a302d; --fg:#eef1ee; --dim:#8d968f;
+  --rec:#ff4a3d; --ok:#4fd18b; --warn:#f4c04e;
+  --sans: "Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  --mono: ui-monospace,"SF Mono","Roboto Mono",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--rec);outline-offset:2px}
+[hidden]{display:none!important}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
+
+/* 홈 */
+#home{justify-content:center;gap:28px;padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+.brand{display:flex;align-items:center;gap:10px;font-size:28px;font-weight:800;letter-spacing:-.02em}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--rec);box-shadow:0 0 12px var(--rec)}
+.lead{color:var(--dim);line-height:1.6;margin:0;font-size:15px}
+.roles{display:grid;gap:14px}
+.role{display:flex;align-items:center;gap:16px;text-align:left;padding:22px 20px;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
+.role:active{transform:scale(.98)}
+.role svg{flex:none;width:44px;height:44px}
+.role b{display:block;font-size:19px;margin-bottom:4px}
+.role span{color:var(--dim);font-size:14px;line-height:1.45}
+.foot{color:var(--dim);font-size:12.5px;line-height:1.6}
+
+/* 공통 상단바 */
+.bar{display:flex;align-items:center;gap:10px;padding:12px 16px;min-height:52px;z-index:3}
+.back{padding:8px 10px;margin-left:-10px;border-radius:10px;font-size:15px;color:var(--dim)}
+.status{flex:1;display:flex;align-items:center;gap:8px;font-size:14px;justify-content:flex-end}
+.led{width:9px;height:9px;border-radius:50%;background:var(--warn)}
+.led.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.led.off{background:var(--rec)}
+
+/* 카메라폰 */
+#cam .stage{position:relative;flex:1;min-height:0;background:#000;overflow:hidden}
+video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+.pair{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  background:rgba(11,13,12,.86);padding:20px;text-align:center}
+.qr{background:#fff;padding:14px;border-radius:16px;line-height:0}
+.qr img,.qr canvas{width:min(62vw,260px);height:auto;image-rendering:pixelated}
+.code{font-family:var(--mono);font-size:26px;letter-spacing:.18em;font-weight:700}
+.hint{color:var(--dim);font-size:14px;line-height:1.6;max-width:320px;margin:0}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+.flash.go{opacity:.85;transition:none}
+.camtools{display:flex;gap:10px;padding:12px 16px;justify-content:center}
+.chip{padding:12px 16px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:14px}
+.chip.on{border-color:var(--warn);color:var(--warn)}
+
+/* 모니터폰 */
+#mon .stage{position:relative;flex:1;min-height:0;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#monVideo{position:absolute;top:50%;left:50%;width:100%;height:100%;transform:translate(-50%,-50%)}
+.guide{position:absolute;inset:0;pointer-events:none}
+.guide::before,.guide::after{content:"";position:absolute;background:rgba(255,255,255,.35)}
+.guide::before{left:33.33%;right:33.33%;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.35);border-right:1px solid rgba(255,255,255,.35);background:none}
+.guide::after{top:33.33%;bottom:33.33%;left:0;right:0;border-top:1px solid rgba(255,255,255,.35);border-bottom:1px solid rgba(255,255,255,.35);background:none}
+.guide i{position:absolute;left:50%;top:50%;width:42%;aspect-ratio:1;max-width:100%;transform:translate(-50%,-50%);border:2px dashed rgba(255,74,61,.7);border-radius:50%}
+.count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:800;text-shadow:0 4px 30px #000;pointer-events:none}
+.join{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:var(--bg)}
+.join h2{margin:0;font-size:21px}
+.codein{display:flex;gap:8px;width:100%;max-width:340px}
+.codein input{flex:1;min-width:0;font-family:var(--mono);font-size:24px;letter-spacing:.15em;text-transform:uppercase;text-align:center;
+  padding:14px 10px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+.btn{padding:14px 18px;border-radius:14px;background:var(--rec);color:#fff;font-weight:700}
+.btn.ghost{background:var(--panel);border:1px solid var(--line);color:var(--fg);font-weight:500}
+.dock{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:14px 16px 18px;gap:8px}
+.side{display:flex;gap:6px}
+.side.r{justify-content:flex-end}
+.tool{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 6px;min-width:54px;border-radius:12px;font-size:11.5px;color:var(--dim)}
+.tool svg{width:24px;height:24px;stroke:var(--fg)}
+.tool.on{color:var(--warn)}
+.tool.on svg{stroke:var(--warn)}
+.tool:disabled{opacity:.35}
+.shutter{width:82px;height:82px;border-radius:50%;border:4px solid var(--fg);display:flex;align-items:center;justify-content:center}
+.shutter::after{content:"";width:64px;height:64px;border-radius:50%;background:var(--rec);transition:transform .1s}
+.shutter:active::after{transform:scale(.88)}
+.shutter:disabled{opacity:.4}
+.shutter.busy::after{animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(.8);opacity:.6}}
+.strip{display:flex;gap:8px;overflow-x:auto;padding:0 16px 4px;min-height:0}
+.strip:empty{display:none}
+.strip img{flex:none;width:58px;height:58px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
+.strip img:first-child{border-color:var(--ok)}
+
+/* 사진 보기 */
+#viewer{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:20;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+#viewer img{flex:1;min-height:0;object-fit:contain;width:100%}
+#viewer .row{display:flex;gap:10px;padding:14px 16px;justify-content:center;flex-wrap:wrap}
+
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:rgba(22,26,24,.95);
+  border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- 홈: 역할 선택 -->
+<section id="home" class="screen">
+  <div class="brand"><span class="dot"></span>DirectCam</div>
+  <p class="lead">폰 두 대를 직접 연결해 한 대로 찍고, 다른 한 대로 실시간으로 보면서 셔터를 누릅니다.</p>
+  <div class="roles">
+    <button class="role" id="pickCam">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff4a3d" stroke-width="1.6"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="4"/><path d="M8 6.5 9.5 4h5L16 6.5"/></svg>
+      <div><b>카메라폰</b><span>머리 위에 들고 정수리를 비추는 폰</span></div>
+    </button>
+    <button class="role" id="pickMon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#eef1ee" stroke-width="1.6"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/><circle cx="12" cy="10" r="3"/></svg>
+      <div><b>모니터폰</b><span>손에 들고 화면을 보며 촬영하는 폰</span></div>
+    </button>
+  </div>
+  <p class="foot">카메라폰에 뜬 QR을 모니터폰 기본 카메라로 찍으면 바로 연결됩니다. 영상과 사진은 서버를 거치지 않고 두 폰 사이에서 직접 오갑니다. 같은 와이파이에 있으면 가장 빠릅니다.</p>
+</section>
+
+<!-- 카메라폰 -->
+<section id="cam" class="screen" hidden>
+  <div class="bar">
+    <button class="back" data-home>← 처음</button>
+    <div class="status"><span class="led" id="camLed"></span><span id="camStatus">준비 중</span></div>
+  </div>
+  <div class="stage">
+    <video id="camVideo" playsinline muted autoplay></video>
+    <div class="flash" id="camFlash"></div>
+    <div class="pair" id="camPair">
+      <div class="qr" id="qrBox"></div>
+      <div class="code" id="camCode">······</div>
+      <p class="hint">모니터폰의 <b>기본 카메라 앱</b>으로 QR을 비추고 뜨는 링크를 누르세요. 또는 모니터폰에서 위 코드를 입력하세요.</p>
+    </div>
+  </div>
+  <div class="camtools">
+    <button class="chip" id="camTorch" hidden>플래시</button>
+    <button class="chip" id="camShowQr" hidden>QR 다시 보기</button>
+    <button class="chip" id="camSelfShot">여기서 촬영</button>
+  </div>
+</section>
+
+<!-- 모니터폰 -->
+<section id="mon" class="screen" hidden>
+  <div class="bar">
+    <button class="back" data-home>← 처음</button>
+    <div class="status"><span class="led" id="monLed"></span><span id="monStatus">대기</span></div>
+  </div>
+  <div class="stage" id="monStage">
+    <video id="monVideo" playsinline muted autoplay></video>
+    <div class="guide" id="guide" hidden><i></i></div>
+    <div class="count" id="count" hidden></div>
+    <div class="flash" id="monFlash"></div>
+    <div class="join" id="join">
+      <h2>카메라폰과 연결</h2>
+      <p class="hint">카메라폰 화면의 QR을 이 폰의 기본 카메라로 찍으면 자동으로 연결됩니다. 또는 6자리 코드를 입력하세요.</p>
+      <form class="codein" id="codeForm">
+        <input id="codeInput" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="코드" aria-label="연결 코드">
+        <button class="btn" type="submit">연결</button>
+      </form>
+      <button class="btn ghost" id="lastCam" hidden>지난번 카메라폰에 다시 연결</button>
+    </div>
+  </div>
+  <div class="strip" id="strip"></div>
+  <div class="dock">
+    <div class="side">
+      <button class="tool" id="tTimer"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2.5h6"/></svg><span id="tTimerLbl">타이머 끔</span></button>
+      <button class="tool" id="tTorch" disabled><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M13 2 5 14h6l-1 8 8-12h-6z"/></svg><span>플래시</span></button>
+    </div>
+    <button class="shutter" id="shutter" disabled aria-label="촬영"></button>
+    <div class="side r">
+      <button class="tool" id="tRotate"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg><span id="tRotLbl">회전 0°</span></button>
+      <button class="tool" id="tGuide"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/></svg><span>가이드</span></button>
+    </div>
+  </div>
+</section>
+
+<div id="viewer" hidden>
+  <img id="viewImg" alt="촬영한 사진">
+  <div class="row">
+    <button class="btn" id="vSave">다시 저장</button>
+    <button class="btn ghost" id="vShare">공유</button>
+    <button class="btn ghost" id="vClose">닫기</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
