@@ -62,12 +62,21 @@ let cleanup = [];
 function show(id) {
   for (const s of ['home', 'cam', 'mon']) $(s).hidden = s !== id;
 }
+// 촬영·모니터 화면은 전체화면으로. 브라우저 정책상 화면을 한 번 터치해야 켜짐
+function enterFull() {
+  const el = document.documentElement;
+  if (document.fullscreenElement || !el.requestFullscreen) return;
+  el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+}
+function exitFull() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+document.addEventListener('pointerdown', () => { if (mode) enterFull(); });
 function goHome() {
   cleanup.forEach((f) => { try { f(); } catch {} });
   cleanup = [];
   try { peer?.destroy(); } catch {}
   peer = null; mode = null;
   try { wakeLock?.release(); } catch {}
+  exitFull();
   history.replaceState(null, '', location.pathname + (qs.get('sig') ? '?sig=' + qs.get('sig') : ''));
   show('home');
 }
@@ -148,7 +157,7 @@ async function startCamera() {
       const buf = await blob.arrayBuffer();
       send({ t: 'photo', name, time: shotAt.getTime(), type: blob.type || 'image/jpeg', buf });
     } else {
-      saveBlob(await finishPhoto(blob, 0, shotAt), name);
+      saveBlob(await finishPhoto(blob, shotAt), name);
       toast('이 폰에 저장했습니다');
     }
   }
@@ -222,7 +231,6 @@ function startMonitor(code) {
   mode = 'mon'; show('mon'); keepAwake();
   const video = $('monVideo');
   let conn = null, camId = null, retryTimer = null, connected = false;
-  let rotation = Number(store.get('dc_rot') || 0);
   let timer = Number(store.get('dc_timer') || 0);
   let torchOn = false, torchOK = false, busy = false;
   const send = (m) => { try { if (conn?.open) conn.send(m); } catch {} };
@@ -250,7 +258,7 @@ function startMonitor(code) {
   let peerReady = new Promise((res) => peer.on('open', res));
   peer.on('call', (c) => {
     c.answer();
-    c.on('stream', (s) => { video.srcObject = s; video.play().catch(() => {}); layoutVideo(); });
+    c.on('stream', (s) => { video.srcObject = s; video.play().catch(() => {}); });
   });
   peer.on('error', (e) => {
     if (e.type === 'peer-unavailable') {
@@ -320,7 +328,7 @@ function startMonitor(code) {
 
   async function receivePhoto(m) {
     const raw = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    const blob = await finishPhoto(raw, rotation, new Date(m.time || Date.now()));
+    const blob = await finishPhoto(raw, new Date(m.time || Date.now()));
     const url = URL.createObjectURL(blob);
     const img = document.createElement('img');
     img.src = url; img.alt = m.name;
@@ -356,20 +364,6 @@ function startMonitor(code) {
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
 
-  // 회전: 머리 위 카메라 방향에 맞춰 화면과 저장 사진을 함께 돌림
-  function layoutVideo() {
-    const st = $('monStage'), r = st.getBoundingClientRect();
-    const side = rotation % 180 !== 0;
-    video.style.width = (side ? r.height : r.width) + 'px';
-    video.style.height = (side ? r.width : r.height) + 'px';
-    video.style.transform = `translate(-50%,-50%) rotate(${rotation}deg)`;
-    $('tRotLbl').textContent = `회전 ${rotation}°`;
-  }
-  $('tRotate').onclick = () => { rotation = (rotation + 90) % 360; store.set('dc_rot', rotation); layoutVideo(); };
-  addEventListener('resize', layoutVideo);
-  cleanup.push(() => removeEventListener('resize', layoutVideo));
-  layoutVideo();
-
   const guideOn = store.get('dc_guide') === '1';
   $('guide').hidden = !guideOn; $('tGuide').classList.toggle('on', guideOn);
   $('tGuide').onclick = () => {
@@ -382,17 +376,13 @@ function startMonitor(code) {
 }
 
 /* ============================ 사진 처리 ============================ */
-// 회전 적용 + 오른쪽 아래에 촬영 일시(연월일_시분초) 새기기
-async function finishPhoto(blob, deg, date) {
-  const bmp = await createImageBitmap(blob);
-  const side = deg % 180 !== 0;
+// 오른쪽 아래에 촬영 일시(연월일_시분초) 새기기. 사진 방향은 폰이 찍은 그대로 유지
+async function finishPhoto(blob, date) {
+  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   const c = document.createElement('canvas');
-  c.width = side ? bmp.height : bmp.width; c.height = side ? bmp.width : bmp.height;
+  c.width = bmp.width; c.height = bmp.height;
   const g = c.getContext('2d');
-  g.save();
-  g.translate(c.width / 2, c.height / 2); g.rotate((deg * Math.PI) / 180);
-  g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
-  g.restore();
+  g.drawImage(bmp, 0, 0);
   const text = stamp(date);
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
@@ -424,7 +414,7 @@ $('vShare').onclick = async () => {
 };
 
 /* ============================ 앱 설치 ============================ */
-const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
 let installEvt = null;
 addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
 addEventListener('appinstalled', () => { $('installBtn').hidden = true; $('installHelp').hidden = true; toast('홈 화면에 설치했습니다'); });
@@ -441,8 +431,8 @@ $('installBtn').onclick = async () => {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* ============================ 시작 ============================ */
-$('pickCam').onclick = startCamera;
-$('pickMon').onclick = () => startMonitor(null);
+$('pickCam').onclick = () => { enterFull(); startCamera(); };
+$('pickMon').onclick = () => { enterFull(); startMonitor(null); };
 const join = qs.get('join');
 if (join && /^[a-z0-9]{6}$/i.test(join)) startMonitor(join.toUpperCase());
 
