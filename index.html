@@ -39,6 +39,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--rec);outline-of
 .role:active{transform:scale(.98)}
 .role svg{flex:none;width:44px;height:44px}
 .role b{display:block;font-size:18px;font-weight:700;margin-bottom:2px;color:var(--fg)}
+.guidebox{display:flex;flex-direction:column;gap:6px}
+.guidebox b{font-size:14px;font-weight:600;color:var(--fg)}
+.guidebox ol{padding-left:20px;display:flex;flex-direction:column;gap:2px}
 .install{display:flex;flex-direction:column;gap:10px}
 .install .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;font-size:16px}
 .install .btn svg{width:20px;height:20px}
@@ -107,9 +110,14 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
 .shutter:disabled{opacity:.4}
 .shutter.busy::after{animation:pulse 1s infinite}
 @keyframes pulse{50%{transform:scale(.8);opacity:.6}}
-.strip{position:absolute;left:0;right:0;bottom:calc(130px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:8px;overflow-x:auto;
+.strip{position:absolute;left:0;right:0;bottom:calc(176px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:8px;overflow-x:auto;
   padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
 .strip:empty{display:none}
+.zoombar{position:absolute;left:0;right:0;bottom:calc(122px + env(safe-area-inset-bottom,0px));z-index:6;display:flex;align-items:center;gap:12px;
+  padding:0 max(20px,env(safe-area-inset-right,0px)) 0 max(20px,env(safe-area-inset-left,0px))}
+.zoombar input{flex:1;min-width:0;accent-color:var(--fg);height:28px}
+.zlbl{min-width:52px;padding:6px 10px;border-radius:999px;background:rgba(22,26,24,.8);border:1px solid var(--line);font-size:14px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+#monStage{touch-action:none}
 .strip img{flex:none;width:58px;height:58px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
 .strip img:first-child{border-color:var(--ok)}
 
@@ -120,7 +128,8 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
     background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.65))}
   .side{flex-direction:column;align-self:start}
   .side.r{align-self:end}
-  .strip{bottom:calc(12px + env(safe-area-inset-bottom,0px));right:120px}
+  .strip{bottom:calc(64px + env(safe-area-inset-bottom,0px));right:120px}
+  .zoombar{right:120px;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
   .camtools{left:auto;top:0;flex-direction:column;justify-content:center;
     padding:12px max(14px,env(safe-area-inset-right,0px)) 12px 28px;background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.6))}
   .bar{right:120px}
@@ -132,7 +141,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
 #viewer img{flex:1;min-height:0;object-fit:contain;width:100%}
 #viewer .row{display:flex;gap:10px;padding:14px 16px;justify-content:center;flex-wrap:wrap}
 
-.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:rgba(22,26,24,.95);
+.toast{position:fixed;left:50%;bottom:calc(236px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:rgba(22,26,24,.95);
   border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
 @media (prefers-reduced-motion:reduce){*:not(.dot){animation:none!important;transition:none!important}}
 </style>
@@ -154,7 +163,14 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
       <div><b>모니터 폰</b><span>손에 들고 화면을 보며 촬영하는 폰</span></div>
     </button>
   </div>
-  <p class="foot">카메라폰에 뜬 QR을 모니터폰 기본 카메라로 찍으면 바로 연결됩니다. 영상과 사진은 서버를 거치지 않고 두 폰 사이에서 직접 오갑니다. 같은 와이파이에 있으면 가장 빠릅니다.</p>
+  <div class="guidebox">
+    <b>이용 안내</b>
+    <ol class="foot">
+      <li>카메라 폰에 뜬 QR 코드를 모니터 폰의 기본 카메라로 비추면 바로 연결됩니다.</li>
+      <li>영상과 사진은 서버를 거치지 않고 두 폰 사이에서만 주고받습니다.</li>
+      <li>같은 Wi‑Fi에 연결하면 가장 빠르고 안정적입니다.</li>
+    </ol>
+  </div>
   <div class="install">
     <button class="btn ghost" id="installBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2.5h16V17"/></svg>앱 설치하기</button>
     <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b></p>
@@ -176,7 +192,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
     <div class="pair" id="camPair">
       <div class="qr" id="qrBox"></div>
       <div class="code" id="camCode">······</div>
-      <p class="hint">모니터폰의 <b>기본 카메라 앱</b>으로 QR을 비추고 뜨는 링크를 누르세요. 또는 모니터폰에서 위 코드를 입력하세요.</p>
+      <p class="hint">모니터 폰의 <b>기본 카메라 앱</b>으로 QR 코드를 비춘 뒤 뜨는 링크를 누르세요. 모니터 폰에서 위 코드를 직접 입력해도 됩니다.</p>
     </div>
   </div>
   <div class="camtools">
@@ -199,16 +215,20 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;backgrou
     <div class="count" id="count" hidden></div>
     <div class="flash" id="monFlash"></div>
     <div class="join" id="join">
-      <h2>카메라폰과 연결</h2>
-      <p class="hint">카메라폰 화면의 QR을 이 폰의 기본 카메라로 찍으면 자동으로 연결됩니다. 또는 6자리 코드를 입력하세요.</p>
+      <h2>카메라 폰과 연결</h2>
+      <p class="hint">카메라 폰 화면의 QR 코드를 이 폰의 기본 카메라로 비추면 자동으로 연결됩니다. 카메라 폰에 표시된 6자리 코드를 입력해도 됩니다.</p>
       <form class="codein" id="codeForm">
         <input id="codeInput" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="코드" aria-label="연결 코드">
         <button class="btn" type="submit">연결</button>
       </form>
-      <button class="btn ghost" id="lastCam" hidden>지난번 카메라폰에 다시 연결</button>
+      <button class="btn ghost" id="lastCam" hidden>지난번 카메라 폰에 다시 연결</button>
     </div>
   </div>
   <div class="strip" id="strip"></div>
+  <div class="zoombar" id="zoomBar" hidden>
+    <input type="range" id="zoom" min="1" max="4" step="0.05" value="1" aria-label="확대·축소">
+    <button class="zlbl" id="zReset" aria-label="배율 초기화"><span id="zLbl">1.0x</span></button>
+  </div>
   <div class="dock">
     <div class="side">
       <button class="tool" id="tTimer"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2.5h6"/></svg><span id="tTimerLbl">타이머 끔</span></button>
