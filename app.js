@@ -139,13 +139,15 @@ async function startCamera() {
   async function shoot(fromRemote) {
     flash($('camFlash'));
     send({ t: 'busy' });
+    const shotAt = new Date();
+    const name = `정수리_${stamp()}.jpg`;
     const blob = await takePhoto();
     if (!blob) { send({ t: 'error', msg: '촬영 실패' }); return; }
     if (fromRemote && conn?.open) {
       const buf = await blob.arrayBuffer();
-      send({ t: 'photo', name: `정수리_${stamp()}.jpg`, type: blob.type || 'image/jpeg', buf });
+      send({ t: 'photo', name, time: shotAt.getTime(), type: blob.type || 'image/jpeg', buf });
     } else {
-      saveBlob(blob, `정수리_${stamp()}.jpg`);
+      saveBlob(await finishPhoto(blob, 0, shotAt), name);
       toast('이 폰에 저장했습니다');
     }
   }
@@ -317,7 +319,7 @@ function startMonitor(code) {
 
   async function receivePhoto(m) {
     const raw = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    const blob = rotation ? await rotateBlob(raw, rotation) : raw;
+    const blob = await finishPhoto(raw, rotation, new Date(m.time || Date.now()));
     const url = URL.createObjectURL(blob);
     const img = document.createElement('img');
     img.src = url; img.alt = m.name;
@@ -379,14 +381,30 @@ function startMonitor(code) {
 }
 
 /* ============================ 사진 처리 ============================ */
-async function rotateBlob(blob, deg) {
+// 회전 적용 + 오른쪽 아래에 촬영 일시(년-월-일 시:분:초) 새기기
+function fmtTime(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+async function finishPhoto(blob, deg, date) {
   const bmp = await createImageBitmap(blob);
   const side = deg % 180 !== 0;
   const c = document.createElement('canvas');
   c.width = side ? bmp.height : bmp.width; c.height = side ? bmp.width : bmp.height;
   const g = c.getContext('2d');
+  g.save();
   g.translate(c.width / 2, c.height / 2); g.rotate((deg * Math.PI) / 180);
   g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+  g.restore();
+  const text = fmtTime(date);
+  const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
+  const pad = Math.round(fs * 0.6);
+  g.font = `700 ${fs}px ui-monospace, "Roboto Mono", monospace`;
+  g.textAlign = 'right'; g.textBaseline = 'bottom';
+  const x = c.width - pad, y = c.height - pad;
+  g.lineJoin = 'round'; g.lineWidth = Math.max(3, fs * 0.18);
+  g.strokeStyle = 'rgba(0,0,0,0.75)'; g.strokeText(text, x, y);
+  g.fillStyle = '#ffd34d'; g.fillText(text, x, y);
   return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
 }
 function saveBlob(blob, name) {
