@@ -155,6 +155,14 @@ async function startCamera() {
         ]);
       } catch { blob = null; }
       if (torchOn) setTorch(true); // 일부 기기는 촬영 후 플래시가 꺼짐
+      // 고화질 사진의 가로·세로 방향이 화면 영상과 다르면 화면 그대로인 영상 프레임을 사용
+      if (blob) {
+        try {
+          const b = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+          if ((b.width >= b.height) !== (video.videoWidth >= video.videoHeight)) blob = null;
+          b.close();
+        } catch {}
+      }
     }
     if (!blob) {
       const c = document.createElement('canvas');
@@ -172,11 +180,13 @@ async function startCamera() {
     const name = `${stamp(shotAt)}.jpg`;
     const blob = await takePhoto();
     if (!blob) { send({ t: 'error', msg: '촬영 실패' }); return; }
+    const aspect = video.videoWidth / video.videoHeight;
     if (fromRemote && conn?.open) {
       const buf = await blob.arrayBuffer();
-      send({ t: 'photo', name, time: shotAt.getTime(), type: blob.type || 'image/jpeg', buf });
+      send({ t: 'photo', name, time: shotAt.getTime(), type: blob.type || 'image/jpeg', aspect, buf });
     } else {
-      saveBlob(await finishPhoto(blob, shotAt), name);
+      const view = visibleFrac(video.parentElement, video.videoWidth, video.videoHeight, 1);
+      saveBlob(await finishPhoto(blob, shotAt, { aspect, ...view }), name);
       toast('이 폰에 저장했습니다');
     }
   }
@@ -255,6 +265,8 @@ function startMonitor(code) {
   let torchOn = false, torchOK = false, busy = false;
   const send = (m) => { try { if (conn?.open) conn.send(m); } catch {} };
   let zoomHW = null, zoom = 1; // zoomHW: 카메라 줌 범위 (없으면 디지털 줌 1~4배)
+  let mirror = store.get('dc_mirror') !== '0'; // 좌우 반전(거울 모드), 기본 켜짐
+  let shotView = null; // 셔터를 누른 순간 화면에 보이던 범위
 
   const last = store.get('dc_last_cam');
   $('lastCam').hidden = !last;
@@ -351,7 +363,9 @@ function startMonitor(code) {
 
   async function receivePhoto(m) {
     const raw = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    const blob = await finishPhoto(raw, new Date(m.time || Date.now()), zoomHW ? 1 : zoom);
+    const view = shotView || currentView();
+    shotView = null;
+    const blob = await finishPhoto(raw, new Date(m.time || Date.now()), { aspect: m.aspect, ...view });
     const url = URL.createObjectURL(blob);
     const img = document.createElement('img');
     img.src = url; img.alt = m.name;
@@ -382,6 +396,7 @@ function startMonitor(code) {
     }
     busy = true; $('shutter').classList.add('busy');
     navigator.vibrate?.(30);
+    shotView = currentView();
     send({ t: 'shoot' });
     setTimeout(() => { if (busy) { busy = false; $('shutter').classList.remove('busy'); toast('응답이 없습니다. 다시 눌러 주세요'); } }, 20000);
   };
@@ -396,7 +411,7 @@ function startMonitor(code) {
     const rel = zoom / zBase();
     $('zLbl').textContent = (rel < 10 ? rel.toFixed(1) : Math.round(rel)) + 'x';
     if (!fromSlider) $('zoom').value = zoom;
-    video.style.transform = zoomHW ? '' : `scale(${zoom})`;
+    updateTransform();
     if (zoomHW) send({ t: 'zoom', value: zoom });
   }
   function setupZoom(start) {
@@ -420,6 +435,21 @@ function startMonitor(code) {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => stage.addEventListener(ev, up));
   cleanup.push(() => { video.style.transform = ''; $('zoomBar').hidden = true; });
 
+  // 좌우 반전: 카메라 폰을 움직이는 방향과 화면이 같은 쪽으로 움직이게 함. 저장 사진에도 똑같이 적용
+  function updateTransform() {
+    const z = zoomHW ? 1 : zoom;
+    video.style.transform = `scale(${mirror ? -z : z}, ${z})`;
+  }
+  function currentView() {
+    return { ...visibleFrac(stage, video.videoWidth, video.videoHeight, zoomHW ? 1 : zoom), mirror };
+  }
+  $('tMirror').classList.toggle('on', mirror);
+  $('tMirror').onclick = () => {
+    mirror = !mirror; store.set('dc_mirror', mirror ? '1' : '0');
+    $('tMirror').classList.toggle('on', mirror); updateTransform();
+  };
+  updateTransform();
+
   const guideOn = store.get('dc_guide') !== '0'; // 기본값: 가이드 켜짐
   $('guide').hidden = !guideOn; $('tGuide').classList.toggle('on', guideOn);
   $('tGuide').onclick = () => {
@@ -432,15 +462,29 @@ function startMonitor(code) {
 }
 
 /* ============================ 사진 처리 ============================ */
-// 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드) 새기기. 사진 방향은 폰이 찍은 그대로 유지
-async function finishPhoto(blob, date, digitalZoom = 1) {
+// 화면(꽉 채우기 + 확대)에 실제로 보이는 비율. fx·fy = 영상 가로·세로 중 화면에 보이는 몫
+function visibleFrac(el, vw, vh, z = 1) {
+  const r = el.getBoundingClientRect();
+  if (!vw || !vh || !r.width || !r.height) return { fx: 1 / z, fy: 1 / z };
+  const s = Math.max(r.width / vw, r.height / vh);
+  return { fx: Math.min(1, r.width / s / vw) / z, fy: Math.min(1, r.height / s / vh) / z };
+}
+// 화면에 보이던 범위 그대로 잘라 저장 + 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드)
+// opt.aspect: 화면 영상의 가로세로비 (고화질 사진은 화각이 더 넓어서 먼저 영상 비율로 맞춤)
+async function finishPhoto(blob, date, opt = {}) {
   const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-  const z = Math.max(1, digitalZoom || 1);
-  const sw = Math.round(bmp.width / z), sh = Math.round(bmp.height / z);
+  const bw = bmp.width, bh = bmp.height;
+  let cw = bw, ch = bh;
+  if (opt.aspect > 0) { if (bw / bh > opt.aspect) cw = bh * opt.aspect; else ch = bw / opt.aspect; }
+  cw = Math.max(1, Math.round(cw * Math.min(1, opt.fx || 1)));
+  ch = Math.max(1, Math.round(ch * Math.min(1, opt.fy || 1)));
   const c = document.createElement('canvas');
-  c.width = sw; c.height = sh;
+  c.width = cw; c.height = ch;
   const g = c.getContext('2d');
-  g.drawImage(bmp, Math.round((bmp.width - sw) / 2), Math.round((bmp.height - sh) / 2), sw, sh, 0, 0, sw, sh);
+  if (opt.mirror) { g.translate(cw, 0); g.scale(-1, 1); }
+  g.drawImage(bmp, Math.round((bw - cw) / 2), Math.round((bh - ch) / 2), cw, ch, 0, 0, cw, ch);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  bmp.close?.();
   const text = stamp(date).replace('_', ' '); // 사진 속 표기: 20261018 160412
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
