@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#0b0d0c">
-<title>DirectCam</title>
+<title>탈모모니터링Cam</title>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 /* 카메라 계기판 콘셉트: 검은 화면 + 녹화등 같은 붉은 포인트, 큰 터치 영역 */
 :root{
@@ -35,6 +37,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--rec);outline-of
 .role b{display:block;font-size:19px;margin-bottom:4px}
 .role span{color:var(--dim);font-size:14px;line-height:1.45}
 .foot{color:var(--dim);font-size:12.5px;line-height:1.6}
+.install{display:flex;flex-direction:column;gap:10px}
+.install .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.install .btn svg{width:20px;height:20px}
+.help{margin:0;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--dim);font-size:13.5px;line-height:1.7}
+.help b{color:var(--fg)}
 .copy{position:absolute;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));margin:0;text-align:center;color:var(--dim);font-size:12px;opacity:.8}
 
 /* 공통 상단바 */
@@ -110,7 +117,7 @@ video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
 
 <!-- 홈: 역할 선택 -->
 <section id="home" class="screen">
-  <div class="brand"><span class="dot"></span>DirectCam</div>
+  <div class="brand"><span class="dot"></span>탈모모니터링Cam</div>
   <p class="lead">폰 두 대를 직접 연결해 한 대로 찍고, 다른 한 대로 실시간으로 보면서 셔터를 누릅니다.</p>
   <div class="roles">
     <button class="role" id="pickCam">
@@ -123,6 +130,10 @@ video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
     </button>
   </div>
   <p class="foot">카메라폰에 뜬 QR을 모니터폰 기본 카메라로 찍으면 바로 연결됩니다. 영상과 사진은 서버를 거치지 않고 두 폰 사이에서 직접 오갑니다. 같은 와이파이에 있으면 가장 빠릅니다.</p>
+  <div class="install">
+    <button class="btn ghost" id="installBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2.5h16V17"/></svg>앱 설치하기</button>
+    <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b></p>
+  </div>
   <p class="copy">© 2026 티제이컴퍼니. All rights reserved.</p>
 </section>
 
