@@ -156,16 +156,20 @@ async function startCamera() {
 
   const caps = track.getCapabilities ? track.getCapabilities() : {};
   const torchOK = !!caps.torch;
+  // 플래시: 켜 두면 사진 찍는 순간에만 잠깐 켜짐 (torchOn = 플래시 사용 설정)
   let torchOn = false;
-  async function setTorch(on) {
+  async function light(on) {
+    try { await track.applyConstraints({ advanced: [{ torch: on }] }); return true; } catch { return false; }
+  }
+  function setTorch(on) {
     if (!torchOK) return false;
-    try { await track.applyConstraints({ advanced: [{ torch: on }] }); torchOn = on; } catch { return false; }
+    torchOn = on;
     $('camTorch').classList.toggle('on', torchOn);
     send({ t: 'state', torch: torchOn });
     return true;
   }
   $('camTorch').hidden = !torchOK;
-  $('camTorch').onclick = () => setTorch(!torchOn);
+  $('camTorch').onclick = () => { setTorch(!torchOn); toast(torchOn ? '플래시 켬: 찍을 때만 잠깐 켜집니다' : '플래시 끔'); };
 
   // 접사: 카메라가 허용하면 초점을 가장 가까운 거리로 고정 (웹에서는 접사 렌즈 자체를 고를 수 없음)
   const fModes = caps.focusMode || [];
@@ -227,7 +231,10 @@ async function startCamera() {
   async function takePhoto() {
     if (!video.videoWidth) return null;
     const refocus = !macroOn && fModes.includes('single-shot');
-    if (refocus) { await centerFocus('single-shot'); await new Promise((r) => setTimeout(r, 700)); }
+    const useFlash = torchOn && torchOK;
+    if (useFlash) await light(true);
+    if (refocus) await centerFocus('single-shot');
+    if (refocus || useFlash) await new Promise((r) => setTimeout(r, useFlash ? 900 : 700)); // 초점·밝기가 자리 잡을 시간
     // 손떨림 대비: 약 0.8초 동안 화면 8장을 잡아 가운데가 가장 선명한 한 장을 고름
     const grab = async () => {
       try { return await createImageBitmap(video); } catch {
@@ -244,6 +251,7 @@ async function startCamera() {
       if (s > bestScore) { best?.close?.(); best = b; bestScore = s; } else b.close?.();
       await new Promise((r) => setTimeout(r, 100));
     }
+    if (useFlash) light(false);
     if (refocus && fModes.includes('continuous')) centerFocus('continuous');
     return best;
   }
@@ -502,7 +510,7 @@ function startMonitor(code) {
     send({ t: 'shoot', ...viewFrac(), mirror, stamp: stampOn });
     setTimeout(() => { if (busy) { busy = false; $('shutter').classList.remove('busy'); toast('응답이 없습니다. 다시 눌러 주세요'); } }, 20000);
   };
-  $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
+  $('tTorch').onclick = () => { send({ t: 'torch', on: !torchOn }); toast(!torchOn ? '플래시 켬: 찍을 때만 잠깐 켜집니다' : '플래시 끔'); };
   // 가운데 빨간 점: 누르면 카메라 폰이 가운데로 초점을 다시 맞춤
   $('focusDot').addEventListener('pointerdown', (e) => e.stopPropagation());
   $('focusDot').onclick = () => {
