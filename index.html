@@ -9,6 +9,10 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="정수리 Cam">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
 /* 카메라 계기판 콘셉트: 검은 화면 + 녹화등 같은 붉은 포인트, 큰 터치 영역 */
@@ -156,6 +160,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .sheet .thumbs img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px}
 .sheet .row{display:flex;gap:8px}
 .sheet .row .btn{flex:1}
+#saveSheet:not([hidden]) ~ .toast{bottom:auto;top:calc(24px + env(safe-area-inset-top,0px))}
 
 .toast{position:fixed;left:50%;bottom:calc(250px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:rgba(22,26,24,.95);
   border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;max-width:calc(100% - 32px);text-align:center}
@@ -188,10 +193,10 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   </div>
   <div class="install">
     <button class="btn ghost" id="installBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2.5h16V17"/></svg>앱 설치하기</button>
-    <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b></p>
+    <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b><br><b>아이폰·아이패드 사파리</b>: 공유 버튼(□↑) → <b>홈 화면에 추가</b></p>
   </div>
   </div>
-  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v19</p>
+  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v20</p>
 </section>
 
 <!-- 카메라폰 -->
@@ -271,7 +276,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 <div id="saveSheet" hidden>
   <div class="sheet">
     <b>이번에 찍은 사진 <span id="sheetCount">0</span>장</b>
-    <p>카메라 폰에 자동으로 저장했습니다. 브라우저 설정 때문에 저장되지 않았다면 「모두 저장」을 눌러 주세요.</p>
+    <p id="sheetMsg">카메라 폰에 자동으로 저장했습니다. 브라우저 설정 때문에 저장되지 않았다면 「모두 저장」을 눌러 주세요.</p>
     <div class="thumbs" id="sheetThumbs"></div>
     <div class="row"><button class="btn" id="sheetSave">모두 저장</button><button class="btn ghost" id="sheetClose">닫기</button></div>
   </div>
@@ -280,6 +285,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

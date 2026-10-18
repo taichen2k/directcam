@@ -97,16 +97,23 @@ function show(id) {
   for (const s of ['home', 'cam', 'mon']) $(s).hidden = s !== id;
 }
 // 촬영·모니터 화면은 전체화면으로. 브라우저 정책상 화면을 한 번 터치해야 켜짐
+// 아이폰은 웹 전체화면을 지원하지 않음(홈 화면에 설치하면 전체화면), 아이패드는 webkit 방식
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+const fsReq = (el) => el.requestFullscreen || el.webkitRequestFullscreen;
 function enterFull() {
-  const el = document.documentElement;
-  if (document.fullscreenElement || !el.requestFullscreen) return;
-  el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  const el = document.documentElement, req = fsReq(el);
+  if (fsEl() || !req) return;
+  try { const r = req.call(el, { navigationUI: 'hide' }); r?.catch?.(() => {}); } catch {}
 }
-function exitFull() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+function exitFull() {
+  if (!fsEl()) return;
+  try { const r = (document.exitFullscreen || document.webkitExitFullscreen).call(document); r?.catch?.(() => {}); } catch {}
+}
 // 폰은 손가락을 뗄 때(click/touchend)만 전체화면을 허용함
 ['click', 'touchend'].forEach((ev) => document.addEventListener(ev, () => { if (mode) enterFull(); }, { passive: true }));
-const updateFsBtn = () => document.querySelectorAll('[data-fs]').forEach((b) => (b.hidden = !!document.fullscreenElement || !document.documentElement.requestFullscreen));
+const updateFsBtn = () => document.querySelectorAll('[data-fs]').forEach((b) => (b.hidden = !!fsEl() || !fsReq(document.documentElement)));
 document.addEventListener('fullscreenchange', updateFsBtn);
+document.addEventListener('webkitfullscreenchange', updateFsBtn);
 document.querySelectorAll('[data-fs]').forEach((b) => b.addEventListener('click', enterFull));
 updateFsBtn();
 // 종료: 상대 폰에도 알려서 둘 다 함께 끝냄
@@ -143,7 +150,7 @@ async function startCamera() {
     return;
   }
   const video = $('camVideo');
-  video.srcObject = stream;
+  video.srcObject = stream; video.play().catch(() => {});
   const track = stream.getVideoTracks()[0];
   cleanup.push(() => stream.getTracks().forEach((t) => t.stop()));
 
@@ -270,10 +277,10 @@ async function startCamera() {
       aspect: video.videoWidth / video.videoHeight, fx: Number(opt?.fx) || 1, fy: Number(opt?.fy) || 1,
       mirror: !!opt?.mirror, stamp: opt && 'stamp' in opt ? !!opt.stamp : stampOn,
     });
-    saveBlob(photo, name);
     shots.push({ photo, name });
-    toast('사진을 저장했습니다');
-    if (opt && conn?.open) send({ t: 'photo', name, type: 'image/jpeg', buf: await photo.arrayBuffer() });
+    if (IOS) toast(`사진 ${shots.length}장 보관 중 · 끝나면 사진 앱에 저장`, 2500); // 아이폰은 버튼을 눌러야만 저장 가능
+    else { saveBlob(photo, name); toast('사진을 저장했습니다'); }
+    if (opt && conn?.open) send({ t: 'photo', name, type: 'image/jpeg', later: IOS, buf: await photo.arrayBuffer() });
   }
   cleanup.push(() => { if (shots.length) setTimeout(() => openSaveSheet(shots.slice()), 150); });
   $('camSelfShot').onclick = () => shoot(null);
@@ -460,10 +467,14 @@ function startMonitor(code) {
     }
   }
 
+  const monShots = []; // 아이폰·아이패드 모니터: 자동 저장 사진을 모아 두었다가 끝날 때 한 번에 저장
+  cleanup.push(() => { if (monShots.length) setTimeout(() => openSaveSheet(monShots.splice(0), 'mon'), 150); });
   function receivePhoto(m) {
     const blob = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    if (autoSave) { saveBlob(blob, m.name); peekPhoto(blob); toast('두 폰 모두 저장했습니다'); }
-    else { openViewer(blob, m.name); toast('카메라 폰에 저장했습니다'); }
+    const camMsg = m.later ? '카메라 폰에 보관했습니다 (끝나면 저장)' : '카메라 폰에 저장했습니다';
+    if (autoSave && IOS) { monShots.push({ photo: blob, name: m.name }); peekPhoto(blob); toast(`이 폰에 ${monShots.length}장 보관 중 · 끝나면 사진 앱에 저장`, 2500); }
+    else if (autoSave) { saveBlob(blob, m.name); peekPhoto(blob); toast(m.later ? '이 폰에 저장했습니다 (카메라 폰은 끝나면 저장)' : '두 폰 모두 저장했습니다'); }
+    else { openViewer(blob, m.name); toast(camMsg); }
   }
   monSend = send;
 
@@ -598,6 +609,20 @@ async function finishPhoto(src, date, opt = {}) {
   g.fillStyle = '#ffffff'; g.fillText(text, x, y);
   return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
 }
+// 아이폰·아이패드: 공유 창의 「이미지 저장」으로 사진 앱에 저장 (버튼을 누를 때만 가능)
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+async function saveToPhotos(list) {
+  const files = list.map((s) => new File([s.photo], s.name, { type: 'image/jpeg' }));
+  if (IOS && navigator.canShare?.({ files })) {
+    try { await navigator.share({ files }); return true; }
+    catch (e) { return e?.name === 'AbortError' ? false : saveEach(list); }
+  }
+  return saveEach(list);
+}
+async function saveEach(list) {
+  for (const s of list) { saveBlob(s.photo, s.name); if (list.length > 1) await new Promise((r) => setTimeout(r, 350)); }
+  return true;
+}
 function saveBlob(blob, name) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
@@ -618,8 +643,12 @@ function closeViewer() {
   URL.revokeObjectURL(viewing.url); viewing = null;
 }
 $('vClose').onclick = () => closeViewer();
-$('vDelete').onclick = () => { if (viewing) { closeViewer(); toast('이 폰에서는 지웠습니다 (카메라 폰에는 저장됨)'); } };
-$('vSave').onclick = () => { if (viewing) { saveBlob(viewing.blob, viewing.name); closeViewer(); toast('이 폰에도 저장했습니다'); } };
+$('vDelete').onclick = () => { if (viewing) { closeViewer(); toast('이 폰에서는 지웠습니다'); } };
+$('vSave').onclick = async () => {
+  if (!viewing) return;
+  const v = viewing;
+  if (await saveToPhotos([{ photo: v.blob, name: v.name }])) { if (viewing === v) closeViewer(); toast('이 폰에도 저장했습니다'); }
+};
 
 // 자동 저장 켬일 때: 찍힌 사진을 잠깐 작게 보여주고 사라짐
 let peekTimer = null;
@@ -632,9 +661,13 @@ function peekPhoto(blob) {
 
 // 카메라 폰: 촬영이 끝나면 이번에 찍은 사진을 보여주고 한 번에 다시 저장할 수 있게 함
 let sheetShots = [];
-function openSaveSheet(list) {
+function openSaveSheet(list, who) {
   sheetShots = list;
   $('sheetCount').textContent = list.length;
+  $('sheetMsg').textContent = IOS
+    ? '아직 저장되지 않았습니다. 「모두 저장」을 누른 뒤 「이미지 저장」을 고르면 사진 앱에 저장됩니다.'
+    : who === 'mon' ? '「모두 저장」을 눌러 이 폰에 저장하세요.'
+    : '카메라 폰에 자동으로 저장했습니다. 브라우저 설정 때문에 저장되지 않았다면 「모두 저장」을 눌러 주세요.';
   const box = $('sheetThumbs'); box.innerHTML = '';
   list.slice(-12).forEach((s) => { const i = document.createElement('img'); i.src = URL.createObjectURL(s.photo); i.alt = s.name; box.appendChild(i); });
   $('saveSheet').hidden = false;
@@ -644,8 +677,8 @@ function closeSaveSheet() {
   $('sheetThumbs').innerHTML = ''; sheetShots = []; $('saveSheet').hidden = true;
 }
 $('sheetSave').onclick = async () => {
-  for (const s of sheetShots) { saveBlob(s.photo, s.name); await new Promise((r) => setTimeout(r, 350)); }
-  toast(`${sheetShots.length}장을 저장했습니다`); closeSaveSheet();
+  const n = sheetShots.length;
+  if (await saveToPhotos(sheetShots)) { toast(`${n}장을 저장했습니다`); closeSaveSheet(); }
 };
 $('sheetClose').onclick = closeSaveSheet;
 
