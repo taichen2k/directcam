@@ -210,15 +210,40 @@ async function startCamera() {
     if (!video.videoWidth) return null;
     const refocus = !macroOn && fModes.includes('single-shot');
     if (refocus) { await centerFocus('single-shot'); await new Promise((r) => setTimeout(r, 700)); }
-    let bmp = null;
-    try { bmp = await createImageBitmap(video); } catch {
-      const c = document.createElement('canvas');
-      c.width = video.videoWidth; c.height = video.videoHeight;
-      c.getContext('2d').drawImage(video, 0, 0);
-      bmp = await createImageBitmap(c);
+    // 손떨림 대비: 약 0.8초 동안 화면 8장을 잡아 가운데가 가장 선명한 한 장을 고름
+    const grab = async () => {
+      try { return await createImageBitmap(video); } catch {
+        const c = document.createElement('canvas');
+        c.width = video.videoWidth; c.height = video.videoHeight;
+        c.getContext('2d').drawImage(video, 0, 0);
+        return createImageBitmap(c);
+      }
+    };
+    let best = null, bestScore = -1;
+    for (let i = 0; i < 8; i++) {
+      const b = await grab();
+      const s = sharpness(b);
+      if (s > bestScore) { best?.close?.(); best = b; bestScore = s; } else b.close?.();
+      await new Promise((r) => setTimeout(r, 100));
     }
     if (refocus && fModes.includes('continuous')) centerFocus('continuous');
-    return bmp;
+    return best;
+  }
+  // 가운데 영역의 선명도 점수 (밝기 변화가 큰 테두리가 많을수록 선명)
+  const sc = document.createElement('canvas'); sc.width = sc.height = 256;
+  const sg = sc.getContext('2d', { willReadFrequently: true });
+  function sharpness(b) {
+    const s = Math.min(b.width, b.height) * 0.5;
+    sg.drawImage(b, (b.width - s) / 2, (b.height - s) / 2, s, s, 0, 0, 256, 256);
+    const d = sg.getImageData(0, 0, 256, 256).data, W = 256;
+    const L = new Float32Array(W * W);
+    for (let i = 0; i < W * W; i++) L[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+    let sum = 0, sq = 0, n = 0;
+    for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x, v = 4 * L[i] - L[i - 1] - L[i + 1] - L[i - W] - L[i + W];
+      sum += v; sq += v * v; n++;
+    }
+    return sq / n - (sum / n) ** 2;
   }
 
   // 카메라 폰에는 항상 자동 저장. 모니터 폰에서 찍으면 모니터 화면 설정(확대·좌우 반전·날짜 표시)대로 만들고 사진을 보냄
