@@ -1,4 +1,4 @@
-/* DirectCam — 카메라폰 ↔ 모니터폰 WebRTC 직접 연결
+/* 탈모모니터링Cam — 카메라폰 ↔ 모니터폰 WebRTC 직접 연결
  * 연결 정보 교환(시그널링)만 PeerJS 공개 중계를 쓰고, 영상·사진은 P2P로 직접 전송한다. */
 (() => {
 'use strict';
@@ -43,9 +43,10 @@ function setStatus(prefix, text, state) {
   $(prefix + 'Led').className = 'led' + (state ? ' ' + state : '');
 }
 function flash(el) { el.classList.add('go'); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('go'))); }
-function stamp() {
-  const d = new Date(), p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+// 이름 규칙: 연월일_시분초 (예: 20261018_160412) — 파일 이름과 사진 속 글씨에 함께 사용
+function stamp(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 let wakeLock = null;
@@ -140,7 +141,7 @@ async function startCamera() {
     flash($('camFlash'));
     send({ t: 'busy' });
     const shotAt = new Date();
-    const name = `정수리_${stamp()}.jpg`;
+    const name = `${stamp(shotAt)}.jpg`;
     const blob = await takePhoto();
     if (!blob) { send({ t: 'error', msg: '촬영 실패' }); return; }
     if (fromRemote && conn?.open) {
@@ -381,11 +382,7 @@ function startMonitor(code) {
 }
 
 /* ============================ 사진 처리 ============================ */
-// 회전 적용 + 오른쪽 아래에 촬영 일시(년-월-일 시:분:초) 새기기
-function fmtTime(d) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
+// 회전 적용 + 오른쪽 아래에 촬영 일시(연월일_시분초) 새기기
 async function finishPhoto(blob, deg, date) {
   const bmp = await createImageBitmap(blob);
   const side = deg % 180 !== 0;
@@ -396,7 +393,7 @@ async function finishPhoto(blob, deg, date) {
   g.translate(c.width / 2, c.height / 2); g.rotate((deg * Math.PI) / 180);
   g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
   g.restore();
-  const text = fmtTime(date);
+  const text = stamp(date);
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
   g.font = `700 ${fs}px ui-monospace, "Roboto Mono", monospace`;
@@ -404,7 +401,7 @@ async function finishPhoto(blob, deg, date) {
   const x = c.width - pad, y = c.height - pad;
   g.lineJoin = 'round'; g.lineWidth = Math.max(3, fs * 0.18);
   g.strokeStyle = 'rgba(0,0,0,0.75)'; g.strokeText(text, x, y);
-  g.fillStyle = '#ffd34d'; g.fillText(text, x, y);
+  g.fillStyle = '#ffffff'; g.fillText(text, x, y);
   return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
 }
 function saveBlob(blob, name) {
@@ -425,6 +422,23 @@ $('vShare').onclick = async () => {
   if (!viewing) return;
   try { await navigator.share({ files: [new File([viewing.blob], viewing.name, { type: 'image/jpeg' })] }); } catch {}
 };
+
+/* ============================ 앱 설치 ============================ */
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+let installEvt = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
+addEventListener('appinstalled', () => { $('installBtn').hidden = true; $('installHelp').hidden = true; toast('홈 화면에 설치했습니다'); });
+$('installBtn').hidden = !!standalone;
+$('installBtn').onclick = async () => {
+  if (installEvt) {
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch {}
+    installEvt = null;
+  } else {
+    $('installHelp').hidden = !$('installHelp').hidden;
+  }
+};
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* ============================ 시작 ============================ */
 $('pickCam').onclick = startCamera;
