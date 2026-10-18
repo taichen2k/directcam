@@ -69,7 +69,12 @@ function enterFull() {
   el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
 }
 function exitFull() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
-document.addEventListener('pointerdown', () => { if (mode) enterFull(); });
+// 폰은 손가락을 뗄 때(click/touchend)만 전체화면을 허용함
+['click', 'touchend'].forEach((ev) => document.addEventListener(ev, () => { if (mode) enterFull(); }, { passive: true }));
+const updateFsBtn = () => document.querySelectorAll('[data-fs]').forEach((b) => (b.hidden = !!document.fullscreenElement || !document.documentElement.requestFullscreen));
+document.addEventListener('fullscreenchange', updateFsBtn);
+document.querySelectorAll('[data-fs]').forEach((b) => b.addEventListener('click', enterFull));
+updateFsBtn();
 function goHome() {
   cleanup.forEach((f) => { try { f(); } catch {} });
   cleanup = [];
@@ -364,7 +369,7 @@ function startMonitor(code) {
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
 
-  const guideOn = store.get('dc_guide') === '1';
+  const guideOn = store.get('dc_guide') !== '0'; // 기본값: 가이드 켜짐
   $('guide').hidden = !guideOn; $('tGuide').classList.toggle('on', guideOn);
   $('tGuide').onclick = () => {
     const on = $('guide').hidden; $('guide').hidden = !on; $('tGuide').classList.toggle('on', on);
@@ -376,17 +381,19 @@ function startMonitor(code) {
 }
 
 /* ============================ 사진 처리 ============================ */
-// 오른쪽 아래에 촬영 일시(연월일_시분초) 새기기. 사진 방향은 폰이 찍은 그대로 유지
+// 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드) 새기기. 사진 방향은 폰이 찍은 그대로 유지
 async function finishPhoto(blob, date) {
   const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   const c = document.createElement('canvas');
   c.width = bmp.width; c.height = bmp.height;
   const g = c.getContext('2d');
   g.drawImage(bmp, 0, 0);
-  const text = stamp(date);
+  const text = stamp(date).replace('_', ' '); // 사진 속 표기: 20261018 160412
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
-  g.font = `700 ${fs}px ui-monospace, "Roboto Mono", monospace`;
+  const font = `700 ${fs}px Pretendard, "Pretendard Variable", sans-serif`;
+  try { await document.fonts.load(font, text); } catch {}
+  g.font = font;
   g.textAlign = 'right'; g.textBaseline = 'bottom';
   const x = c.width - pad, y = c.height - pad;
   g.lineJoin = 'round'; g.lineWidth = Math.max(3, fs * 0.18);
