@@ -226,11 +226,12 @@ async function startCamera() {
       aspect: video.videoWidth / video.videoHeight, fx: Number(opt?.fx) || 1, fy: Number(opt?.fy) || 1,
       mirror: !!opt?.mirror, stamp: opt && 'stamp' in opt ? !!opt.stamp : stampOn,
     });
-    if (!opt || !conn?.open) { saveBlob(photo, name); toast('사진을 저장했습니다'); return; }
-    keepPending(); // 앞에 결정 안 된 사진이 있으면 먼저 저장
+    const auto = !opt || opt.auto !== false; // 자동 저장(기본): 찍자마자 카메라 폰에 저장
+    if (auto || !conn?.open) { saveBlob(photo, name); toast('사진을 저장했습니다'); }
+    if (!opt || !conn?.open) return;
     const id = ++photoSeq;
-    pending = { id, photo, name };
-    send({ t: 'photo', id, name, type: 'image/jpeg', buf: await photo.arrayBuffer() });
+    if (!auto) { keepPending(); pending = { id, photo, name }; } // 자동 저장 끔: 닫기=저장, 삭제=버림
+    send({ t: 'photo', id, name, auto, type: 'image/jpeg', buf: await photo.arrayBuffer() });
   }
   // 모니터 폰에서 찍은 사진: 「닫기」면 카메라 폰에 저장, 「삭제」면 버림. 결정 전에 끊기면 저장
   let pending = null, photoSeq = 0;
@@ -289,7 +290,7 @@ async function startCamera() {
       c.on('data', (m) => {
         if (!m || typeof m !== 'object') return;
         if (m.t === 'bye') { goHome('모니터 폰이 종료되어 함께 종료했습니다'); return; }
-        if (m.t === 'shoot') shoot({ fx: m.fx, fy: m.fy, mirror: m.mirror, stamp: m.stamp });
+        if (m.t === 'shoot') shoot({ fx: m.fx, fy: m.fy, mirror: m.mirror, stamp: m.stamp, auto: m.auto });
         else if (m.t === 'keep') keepPending(m.id);
         else if (m.t === 'discard') discardPending(m.id);
         else if (m.t === 'torch') setTorch(!!m.on);
@@ -324,6 +325,12 @@ function startMonitor(code) {
   sayBye = () => send({ t: 'bye' });
   let zoomHW = null, zoom = 1; // zoomHW: 카메라 줌 범위 (없으면 디지털 줌 1~4배)
   let mirror = store.get('dc_mirror') !== '0'; // 좌우 반전(거울 모드), 기본 켜짐
+  let autoSave = store.get('dc_autosave') !== '0'; // 자동 저장, 기본 켜짐
+  $('tAuto').classList.toggle('on', autoSave);
+  $('tAuto').onclick = () => {
+    autoSave = !autoSave; store.set('dc_autosave', autoSave ? '1' : '0'); $('tAuto').classList.toggle('on', autoSave);
+    toast(autoSave ? '자동 저장 켬: 찍으면 카메라 폰에 바로 저장합니다' : '자동 저장 끔: 닫기를 누르면 저장, 삭제를 누르면 버립니다', 3000);
+  };
 
   const last = store.get('dc_last_cam');
   $('lastCam').hidden = !last;
@@ -421,7 +428,8 @@ function startMonitor(code) {
 
   function receivePhoto(m) {
     const blob = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    openViewer(blob, m.name, m.id);
+    openViewer(blob, m.name, m.id, !!m.auto);
+    if (m.auto) toast('카메라 폰에 저장했습니다');
   }
   monSend = send;
 
@@ -446,7 +454,7 @@ function startMonitor(code) {
     }
     busy = true; $('shutter').classList.add('busy');
     navigator.vibrate?.(30);
-    send({ t: 'shoot', ...viewFrac(), mirror, stamp: stampOn });
+    send({ t: 'shoot', ...viewFrac(), mirror, stamp: stampOn, auto: autoSave });
     setTimeout(() => { if (busy) { busy = false; $('shutter').classList.remove('busy'); toast('응답이 없습니다. 다시 눌러 주세요'); } }, 20000);
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
@@ -554,10 +562,11 @@ function saveBlob(blob, name) {
 }
 // 찍은 사진 확인 창. 닫기 = 카메라 폰에 저장, 삭제 = 저장하지 않고 버림. 어느 쪽이든 화면에 남기지 않음
 let viewing = null;
-function openViewer(blob, name, id) {
+function openViewer(blob, name, id, saved) {
   closeViewer();
   const url = URL.createObjectURL(blob);
-  viewing = { blob, name, id, url };
+  viewing = { blob, name, id, url, saved };
+  $('vDelete').hidden = !!saved; // 이미 카메라 폰에 저장된 사진은 웹에서 지울 수 없어 삭제 버튼을 숨김
   $('viewImg').src = url; $('viewer').hidden = false;
   $('vShare').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: 'image/jpeg' })] }));
 }
@@ -568,8 +577,9 @@ function closeViewer() {
 }
 $('vClose').onclick = () => {
   if (!viewing) return;
-  monSend?.({ t: 'keep', id: viewing.id });
-  closeViewer(); toast('카메라 폰에 저장했습니다');
+  const saved = viewing.saved;
+  if (!saved) monSend?.({ t: 'keep', id: viewing.id });
+  closeViewer(); if (!saved) toast('카메라 폰에 저장했습니다');
 };
 $('vDelete').onclick = () => {
   if (!viewing) return;
