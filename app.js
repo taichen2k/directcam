@@ -55,6 +55,27 @@ async function keepAwake() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && mode) keepAwake(); });
 
+// 홈 버튼·다른 앱으로 나가면 카메라와 연결을 끄고 첫 화면으로 (잠깐 가려지는 경우는 무시)
+let hideTimer = null;
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(hideTimer);
+  if (document.visibilityState === 'hidden' && mode) hideTimer = setTimeout(() => { if (document.visibilityState === 'hidden' && mode) goHome(); }, 800);
+});
+
+// 사진에 날짜 넣기: 한 번 정하면 바꿀 때까지 이 폰에 기억 (기본: 넣기)
+let stampOn = store.get('dc_stamp') !== '0';
+function syncStampButtons() {
+  document.querySelectorAll('[data-stamp]').forEach((b) => {
+    b.classList.toggle('on', stampOn);
+    const l = b.querySelector('span') || b; l.textContent = stampOn ? '날짜 켬' : '날짜 끔';
+  });
+}
+document.querySelectorAll('[data-stamp]').forEach((b) => b.addEventListener('click', () => {
+  stampOn = !stampOn; store.set('dc_stamp', stampOn ? '1' : '0'); syncStampButtons();
+  toast(stampOn ? '사진에 날짜를 넣습니다' : '사진에 날짜를 넣지 않습니다');
+}));
+syncStampButtons();
+
 let mode = null;          // 'cam' | 'mon'
 let peer = null;
 let cleanup = [];
@@ -485,6 +506,7 @@ async function finishPhoto(blob, date, opt = {}) {
   g.drawImage(bmp, Math.round((bw - cw) / 2), Math.round((bh - ch) / 2), cw, ch, 0, 0, cw, ch);
   g.setTransform(1, 0, 0, 1, 0, 0);
   bmp.close?.();
+  if (!stampOn) return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
   const text = stamp(date).replace('_', ' '); // 사진 속 표기: 20261018 160412
   const fs = Math.max(14, Math.round(Math.min(c.width, c.height) * 0.04));
   const pad = Math.round(fs * 0.6);
