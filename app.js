@@ -80,6 +80,7 @@ let mode = null;          // 'cam' | 'mon'
 let peer = null;
 let cleanup = [];
 let sayBye = null;        // 종료할 때 상대 폰에 알리는 함수
+let monSend = null;       // 모니터 폰 → 카메라 폰 메시지 (사진 보관/삭제 결정)
 
 // 화면 속 화면(팝업 플레이어)으로 앱이 계속 도는 것을 막음: 뜨면 바로 종료
 ['camVideo', 'monVideo'].forEach((id) => {
@@ -111,7 +112,8 @@ updateFsBtn();
 // 종료: 상대 폰에도 알려서 둘 다 함께 끝냄
 function goHome(msg) {
   try { sayBye?.(); } catch {}
-  sayBye = null;
+  sayBye = null; monSend = null;
+  closeViewer();
   cleanup.forEach((f) => { try { f(); } catch {} });
   cleanup = [];
   const p = peer;
@@ -224,10 +226,24 @@ async function startCamera() {
       aspect: video.videoWidth / video.videoHeight, fx: Number(opt?.fx) || 1, fy: Number(opt?.fy) || 1,
       mirror: !!opt?.mirror, stamp: opt && 'stamp' in opt ? !!opt.stamp : stampOn,
     });
-    saveBlob(photo, name);
-    toast('사진을 저장했습니다');
-    if (opt && conn?.open) send({ t: 'photo', name, type: 'image/jpeg', buf: await photo.arrayBuffer() });
+    if (!opt || !conn?.open) { saveBlob(photo, name); toast('사진을 저장했습니다'); return; }
+    keepPending(); // 앞에 결정 안 된 사진이 있으면 먼저 저장
+    const id = ++photoSeq;
+    pending = { id, photo, name };
+    send({ t: 'photo', id, name, type: 'image/jpeg', buf: await photo.arrayBuffer() });
   }
+  // 모니터 폰에서 찍은 사진: 「닫기」면 카메라 폰에 저장, 「삭제」면 버림. 결정 전에 끊기면 저장
+  let pending = null, photoSeq = 0;
+  function keepPending(id) {
+    if (!pending || (id && pending.id !== id)) return;
+    saveBlob(pending.photo, pending.name); pending = null;
+    toast('사진을 저장했습니다');
+  }
+  function discardPending(id) {
+    if (!pending || pending.id !== id) return;
+    pending = null; toast('사진을 지웠습니다');
+  }
+  cleanup.push(() => keepPending());
   $('camSelfShot').onclick = () => shoot(null);
 
   // 고정 ID: 한 번 연결한 모니터폰은 다음에도 같은 링크로 재접속 가능
@@ -274,6 +290,8 @@ async function startCamera() {
         if (!m || typeof m !== 'object') return;
         if (m.t === 'bye') { goHome('모니터 폰이 종료되어 함께 종료했습니다'); return; }
         if (m.t === 'shoot') shoot({ fx: m.fx, fy: m.fy, mirror: m.mirror, stamp: m.stamp });
+        else if (m.t === 'keep') keepPending(m.id);
+        else if (m.t === 'discard') discardPending(m.id);
         else if (m.t === 'torch') setTorch(!!m.on);
         else if (m.t === 'zoom') setZoom(Number(m.value));
       });
@@ -403,13 +421,9 @@ function startMonitor(code) {
 
   function receivePhoto(m) {
     const blob = new Blob([m.buf], { type: m.type || 'image/jpeg' });
-    const url = URL.createObjectURL(blob);
-    const img = document.createElement('img');
-    img.src = url; img.alt = m.name;
-    img.onclick = () => openViewer(blob, url, m.name);
-    $('strip').prepend(img);
-    toast('카메라 폰에 저장했습니다');
+    openViewer(blob, m.name, m.id);
   }
+  monSend = send;
 
   // 셔터 + 타이머
   const TIMERS = [0, 3, 5, 10];
@@ -538,13 +552,30 @@ function saveBlob(blob, name) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 30000);
 }
+// 찍은 사진 확인 창. 닫기 = 카메라 폰에 저장, 삭제 = 저장하지 않고 버림. 어느 쪽이든 화면에 남기지 않음
 let viewing = null;
-function openViewer(blob, url, name) {
-  viewing = { blob, name };
+function openViewer(blob, name, id) {
+  closeViewer();
+  const url = URL.createObjectURL(blob);
+  viewing = { blob, name, id, url };
   $('viewImg').src = url; $('viewer').hidden = false;
   $('vShare').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: 'image/jpeg' })] }));
 }
-$('vClose').onclick = () => { $('viewer').hidden = true; viewing = null; };
+function closeViewer() {
+  if (!viewing) return;
+  $('viewer').hidden = true; $('viewImg').removeAttribute('src');
+  URL.revokeObjectURL(viewing.url); viewing = null;
+}
+$('vClose').onclick = () => {
+  if (!viewing) return;
+  monSend?.({ t: 'keep', id: viewing.id });
+  closeViewer(); toast('카메라 폰에 저장했습니다');
+};
+$('vDelete').onclick = () => {
+  if (!viewing) return;
+  monSend?.({ t: 'discard', id: viewing.id });
+  closeViewer(); toast('사진을 지웠습니다');
+};
 $('vSave').onclick = () => { if (viewing) { saveBlob(viewing.blob, viewing.name); toast('이 폰에도 저장했습니다'); } };
 $('vShare').onclick = async () => {
   if (!viewing) return;
