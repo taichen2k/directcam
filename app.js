@@ -204,6 +204,17 @@ async function startCamera() {
     catch { try { await track.applyConstraints({ advanced: [{ focusMode: mode }] }); } catch {} }
   }
   if (fModes.includes('continuous')) centerFocus('continuous');
+  // 모니터 폰에서 가운데 빨간 점을 누르면 가운데로 초점을 다시 맞춤 (접사 중이면 접사를 끄고 자동 초점으로)
+  async function refocus() {
+    if (macroOn) await setMacro(false);
+    if (fModes.includes('single-shot')) {
+      await centerFocus('single-shot');
+      setTimeout(() => { if (!macroOn && fModes.includes('continuous')) centerFocus('continuous'); }, 1500);
+    } else if (fModes.includes('continuous')) {
+      if (fModes.includes('manual')) { try { await track.applyConstraints({ advanced: [{ focusMode: 'manual' }] }); } catch {} }
+      centerFocus('continuous');
+    }
+  }
 
   // 사진 = 모니터에 보내는 바로 그 영상 화면 (화각·확대·방향이 모니터 화면과 똑같음)
   async function takePhoto() {
@@ -313,6 +324,7 @@ async function startCamera() {
         if (m.t === 'shoot') shoot({ fx: m.fx, fy: m.fy, mirror: m.mirror, stamp: m.stamp });
         else if (m.t === 'torch') setTorch(!!m.on);
         else if (m.t === 'macro') setMacro(!!m.on);
+        else if (m.t === 'focus') refocus();
         else if (m.t === 'zoom') setZoom(Number(m.value));
       });
       const lost = () => {
@@ -366,6 +378,7 @@ function startMonitor(code) {
     $('join').hidden = on;
     $('shutter').disabled = !on;
     $('tTorch').disabled = !on || !torchOK;
+    $('focusDot').hidden = !on;
   }
   setConnected(false);
   setStatus('mon', '대기', '');
@@ -415,7 +428,7 @@ function startMonitor(code) {
       if (connected) toast('연결이 끊겼습니다. 다시 연결하는 중…');
       setConnected(false);
       $('join').hidden = true; // 재연결 중에는 마지막 화면 유지
-      $('shutter').disabled = true;
+      $('shutter').disabled = true; $('focusDot').hidden = true;
       setStatus('mon', '재연결 중', 'off');
       scheduleRetry();
     };
@@ -479,6 +492,14 @@ function startMonitor(code) {
     setTimeout(() => { if (busy) { busy = false; $('shutter').classList.remove('busy'); toast('응답이 없습니다. 다시 눌러 주세요'); } }, 20000);
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
+  // 가운데 빨간 점: 누르면 카메라 폰이 가운데로 초점을 다시 맞춤
+  $('focusDot').addEventListener('pointerdown', (e) => e.stopPropagation());
+  $('focusDot').onclick = () => {
+    if (!connected) return;
+    send({ t: 'focus' }); navigator.vibrate?.(15);
+    const d = $('focusDot'); d.classList.remove('ping'); void d.offsetWidth; d.classList.add('ping');
+    toast('가운데로 초점을 다시 맞춥니다', 1500);
+  };
   let macroOn = false;
   $('tMacro').onclick = () => { send({ t: 'macro', on: !macroOn }); toast(!macroOn ? '접사 켬: 가까운 거리에 초점을 맞춥니다' : '접사 끔: 자동 초점'); };
 

@@ -86,6 +86,11 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .guide::before{left:33.33%;right:33.33%;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.35);border-right:1px solid rgba(255,255,255,.35);background:none}
 .guide::after{top:33.33%;bottom:33.33%;left:0;right:0;border-top:1px solid rgba(255,255,255,.35);border-bottom:1px solid rgba(255,255,255,.35);background:none}
 .guide i{position:absolute;left:50%;top:50%;width:46vmin;aspect-ratio:1;transform:translate(-50%,-50%);border:2px dashed rgba(255,74,61,.7);border-radius:50%}
+.focusdot{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border:0;padding:0;background:none;z-index:3;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.focusdot::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--rec);box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 8px rgba(0,0,0,.6)}
+.focusdot::after{content:"";position:absolute;inset:8px;border:2px solid rgba(255,255,255,.9);border-radius:50%;opacity:0}
+.focusdot.ping::after{animation:fping .9s ease-out}
+@keyframes fping{0%{opacity:1;transform:scale(1.6)}100%{opacity:0;transform:scale(.6)}}
 .count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:800;text-shadow:0 4px 30px #000;pointer-events:none}
 .join{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:var(--bg)}
 .join h2{margin:0;font-size:21px}
@@ -186,7 +191,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b></p>
   </div>
   </div>
-  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v18</p>
+  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v19</p>
 </section>
 
 <!-- 카메라폰 -->
@@ -223,6 +228,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   <div class="stage" id="monStage">
     <video id="monVideo" playsinline muted autoplay disablepictureinpicture></video>
     <div class="guide" id="guide" hidden><i></i></div>
+    <button class="focusdot" id="focusDot" aria-label="가운데로 초점 다시 맞추기" hidden></button>
     <div class="count" id="count" hidden></div>
     <div class="flash" id="monFlash"></div>
     <div class="join" id="join">
@@ -274,6 +280,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
