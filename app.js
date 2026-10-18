@@ -135,7 +135,7 @@ async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' }, aspectRatio: { ideal: 4 / 3 }, width: { ideal: 1920 }, height: { ideal: 1440 }, frameRate: { ideal: 30 }, zoom: true },
+      video: { facingMode: { ideal: 'environment' }, aspectRatio: { ideal: 4 / 3 }, width: { ideal: 4032 }, height: { ideal: 3024 }, frameRate: { ideal: 30 }, zoom: true },
     });
   } catch (e) {
     setStatus('cam', '카메라를 쓸 수 없음', 'off');
@@ -198,34 +198,14 @@ async function startCamera() {
   }
   $('camShowQr').onclick = () => { $('camPair').hidden = !$('camPair').hidden; };
 
-  // 고화질 사진: ImageCapture.takePhoto 우선, 실패하면 영상 프레임 캡처
+  // 사진 = 모니터에 보내는 바로 그 영상 화면 (화각·확대·방향이 모니터 화면과 똑같음)
   async function takePhoto() {
-    let blob = null;
-    if ('ImageCapture' in window) {
-      try {
-        const ic = new ImageCapture(track);
-        blob = await Promise.race([
-          ic.takePhoto(),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000)),
-        ]);
-      } catch { blob = null; }
-      if (torchOn) setTorch(true); // 일부 기기는 촬영 후 플래시가 꺼짐
-      // 고화질 사진의 가로·세로 방향이 화면 영상과 다르면 화면 그대로인 영상 프레임을 사용
-      if (blob) {
-        try {
-          const b = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-          if ((b.width >= b.height) !== (video.videoWidth >= video.videoHeight)) blob = null;
-          b.close();
-        } catch {}
-      }
-    }
-    if (!blob) {
-      const c = document.createElement('canvas');
-      c.width = video.videoWidth; c.height = video.videoHeight;
-      c.getContext('2d').drawImage(video, 0, 0);
-      blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95));
-    }
-    return blob;
+    if (!video.videoWidth) return null;
+    try { return await createImageBitmap(video); } catch {}
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth; c.height = video.videoHeight;
+    c.getContext('2d').drawImage(video, 0, 0);
+    return await createImageBitmap(c);
   }
 
   // 사진은 카메라 폰에 저장. 모니터 폰에서 찍으면 모니터 화면 설정(확대·좌우 반전·날짜 표시)대로 만들고 미리보기를 보냄
@@ -545,8 +525,8 @@ function startMonitor(code) {
 /* ============================ 사진 처리 ============================ */
 // 화면에 보이는 그대로 저장 + 오른쪽 아래에 촬영 일시(연월일 시분초, 프리텐다드)
 // 화면은 카메라 영상 전체를 자르지 않고 보여줌. opt.aspect: 영상 비율(사진과 다를 때만 맞춤), fx·fy: 확대 배율만큼의 가운데 몫
-async function finishPhoto(blob, date, opt = {}) {
-  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+async function finishPhoto(src, date, opt = {}) {
+  const bmp = src instanceof Blob ? await createImageBitmap(src, { imageOrientation: 'from-image' }) : src;
   const bw = bmp.width, bh = bmp.height;
   let cw = bw, ch = bh;
   if (opt.aspect > 0) { if (bw / bh > opt.aspect) cw = bh * opt.aspect; else ch = bw / opt.aspect; }
