@@ -74,10 +74,10 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .hint{color:var(--dim);font-size:14px;line-height:1.6;max-width:320px;margin:0}
 .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 .flash.go{opacity:.85;transition:none}
-.camtools{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+.camtools{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;gap:6px;justify-content:center;flex-wrap:nowrap;
   padding:24px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
   background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.6))}
-.chip{padding:12px 16px;border-radius:999px;background:rgba(22,26,24,.8);border:1px solid var(--line);font-size:14px}
+.chip{flex:0 1 auto;padding:11px 12px;border-radius:999px;background:rgba(22,26,24,.8);border:1px solid var(--line);font-size:13.5px;white-space:nowrap}
 .chip.on{border-color:var(--warn);color:var(--warn)}
 
 /* 모니터폰 */
@@ -115,6 +115,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .zoombar{position:absolute;left:0;right:0;bottom:calc(196px + env(safe-area-inset-bottom,0px));z-index:6;display:flex;align-items:center;gap:12px;
   padding:0 max(20px,env(safe-area-inset-right,0px)) 0 max(20px,env(safe-area-inset-left,0px))}
 .zoombar input{flex:1;min-width:0;accent-color:var(--fg);height:28px}
+.zlbl.on{color:var(--warn);border-color:var(--warn)}
 .zlbl{min-width:52px;padding:6px 10px;border-radius:999px;background:rgba(22,26,24,.8);border:1px solid var(--line);font-size:14px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
 #monStage{touch-action:none}
 .strip img{flex:none;width:58px;height:58px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
@@ -196,7 +197,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   </div>
   <div class="camtools">
     <button class="chip" id="camTorch" hidden>플래시</button>
-    <button class="chip" id="camShowQr" hidden>QR 다시 보기</button>
+    <button class="chip" id="camShowQr" hidden>QR 보기</button>
     <button class="chip" data-stamp aria-pressed="true">날짜 표시</button>
     <button class="chip" id="camSelfShot">여기서 촬영</button>
   </div>
@@ -226,6 +227,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   </div>
   <div class="zoombar" id="zoomBar" hidden>
     <input type="range" id="zoom" min="1" max="4" step="0.05" value="1" aria-label="확대·축소">
+    <button class="zlbl" id="tMacro" hidden>접사</button>
     <button class="zlbl" id="zReset" aria-label="배율 초기화"><span id="zLbl">1.0x</span></button>
   </div>
   <div class="dock">
@@ -254,6 +256,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

@@ -160,6 +160,20 @@ async function startCamera() {
   $('camTorch').hidden = !torchOK;
   $('camTorch').onclick = () => setTorch(!torchOn);
 
+  // 접사: 카메라가 허용하면 초점을 가장 가까운 거리로 고정 (웹에서는 접사 렌즈 자체를 고를 수 없음)
+  const fModes = caps.focusMode || [];
+  const macroOK = !!(caps.focusDistance && fModes.includes('manual'));
+  let macroOn = false;
+  async function setMacro(on) {
+    if (!macroOK) return;
+    try {
+      if (on) await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: caps.focusDistance.min }] });
+      else await track.applyConstraints({ advanced: [{ focusMode: fModes.includes('continuous') ? 'continuous' : fModes[0] }] });
+      macroOn = on;
+    } catch {}
+    send({ t: 'state', macro: macroOn });
+  }
+
   // 확대·축소: 카메라가 지원하면 실제 카메라 줌, 아니면 모니터 폰에서 디지털 줌
   const zoomCap = caps.zoom && caps.zoom.max > caps.zoom.min
     ? { min: caps.zoom.min, max: Math.min(caps.zoom.max, caps.zoom.min * 10), step: caps.zoom.step || 0.1 } : null;
@@ -256,7 +270,7 @@ async function startCamera() {
       const url = `${location.origin}${location.pathname}?join=${codeOf(id)}${qs.get('sig') ? '&sig=' + qs.get('sig') : ''}`;
       drawQR(url);
       $('camCode').textContent = codeOf(id);
-      setStatus('cam', '모니터폰 연결 대기', '');
+      setStatus('cam', '모니터 폰 연결 대기', '');
       showPairing(true);
     });
     peer.on('error', (e) => {
@@ -283,9 +297,9 @@ async function startCamera() {
       conn = c;
       c.on('open', () => {
         call = peer.call(c.peer, stream);
-        setStatus('cam', '모니터폰 연결됨', 'on');
+        setStatus('cam', '모니터 폰 연결됨', 'on');
         showPairing(false);
-        send({ t: 'hello', torch: torchOK, torchOn, zoom: zoomCap && { ...zoomCap, value: zoomWant } });
+        send({ t: 'hello', torch: torchOK, torchOn, macro: macroOK, macroOn, zoom: zoomCap && { ...zoomCap, value: zoomWant } });
       });
       c.on('data', (m) => {
         if (!m || typeof m !== 'object') return;
@@ -294,6 +308,7 @@ async function startCamera() {
         else if (m.t === 'keep') keepPending(m.id);
         else if (m.t === 'discard') discardPending(m.id);
         else if (m.t === 'torch') setTorch(!!m.on);
+        else if (m.t === 'macro') setMacro(!!m.on);
         else if (m.t === 'zoom') setZoom(Number(m.value));
       });
       const lost = () => {
@@ -359,7 +374,7 @@ function startMonitor(code) {
   });
   peer.on('error', (e) => {
     if (e.type === 'peer-unavailable') {
-      setStatus('mon', '카메라폰을 찾는 중', '');
+      setStatus('mon', '카메라 폰을 찾는 중', '');
       scheduleRetry();
     } else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') {
       setStatus('mon', '중계 서버 연결 실패 · 재시도 중', 'off');
@@ -411,8 +426,10 @@ function startMonitor(code) {
       $('tTorch').disabled = !torchOK; $('tTorch').classList.toggle('on', torchOn);
       zoomHW = m.zoom || null;
       setupZoom(zoomHW ? zoomHW.value : 1);
+      $('tMacro').hidden = !m.macro; macroOn = !!m.macroOn; $('tMacro').classList.toggle('on', macroOn);
     } else if (m.t === 'state') {
-      torchOn = !!m.torch; $('tTorch').classList.toggle('on', torchOn);
+      if ('torch' in m) { torchOn = !!m.torch; $('tTorch').classList.toggle('on', torchOn); }
+      if ('macro' in m) { macroOn = !!m.macro; $('tMacro').classList.toggle('on', macroOn); }
     } else if (m.t === 'busy') {
       flash($('monFlash'));
       setStatus('mon', '사진 받는 중', 'on');
@@ -458,6 +475,8 @@ function startMonitor(code) {
     setTimeout(() => { if (busy) { busy = false; $('shutter').classList.remove('busy'); toast('응답이 없습니다. 다시 눌러 주세요'); } }, 20000);
   };
   $('tTorch').onclick = () => send({ t: 'torch', on: !torchOn });
+  let macroOn = false;
+  $('tMacro').onclick = () => { send({ t: 'macro', on: !macroOn }); toast(!macroOn ? '접사 켬: 가까운 거리에 초점을 맞춥니다' : '접사 끔: 자동 초점'); };
 
   // 확대·축소: 슬라이더 + 두 손가락 벌리기/오므리기
   const zRange = () => (zoomHW ? [zoomHW.min, zoomHW.max] : [1, 4]);
