@@ -109,9 +109,8 @@ function exitFull() {
   if (!fsEl()) return;
   try { const r = (document.exitFullscreen || document.webkitExitFullscreen).call(document); r?.catch?.(() => {}); } catch {}
 }
-// 폰은 손가락을 뗄 때(click/touchend)만 전체화면을 허용함
-['click', 'touchend'].forEach((ev) => document.addEventListener(ev, () => { if (mode) enterFull(); }, { passive: true }));
-const updateFsBtn = () => document.querySelectorAll('[data-fs]').forEach((b) => (b.hidden = !!fsEl() || !fsReq(document.documentElement)));
+// 전체화면은 쓰지 않음: 폰 아래쪽 홈·뒤로가기 버튼 줄이 항상 보이도록 (전체화면 버튼도 숨김)
+const updateFsBtn = () => document.querySelectorAll('[data-fs]').forEach((b) => (b.hidden = true));
 document.addEventListener('fullscreenchange', updateFsBtn);
 document.addEventListener('webkitfullscreenchange', updateFsBtn);
 document.querySelectorAll('[data-fs]').forEach((b) => b.addEventListener('click', enterFull));
@@ -717,8 +716,8 @@ $('installBtn').onclick = async () => {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* ============================ 시작 ============================ */
-$('pickCam').onclick = () => { enterFull(); startCamera(); };
-$('pickMon').onclick = () => { enterFull(); startMonitor(null); };
+$('pickCam').onclick = () => startCamera();
+$('pickMon').onclick = () => startMonitor(null);
 const join = qs.get('join');
 if (join && /^[a-z0-9]{6}$/i.test(join)) startMonitor(join.toUpperCase());
 
