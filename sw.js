@@ -1,5 +1,5 @@
 /* 탈모모니터링Cam 서비스워커: 앱 설치용. 화면 파일만 보관하고 사진은 저장하지 않음 */
-const CACHE = 'tmcam-v26';
+const CACHE = 'tmcam-v27';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
   'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'];

@@ -486,13 +486,17 @@ async function startMonitor(code) {
     try {
       const st = await cn.peerConnection.getStats();
       const kind = (c) => (c.candidateType === 'host' ? ((c.address || c.ip || '').endsWith('.local') ? '가림' : '내부') : c.candidateType === 'srflx' ? '외부' : c.candidateType);
-      const L = new Set(), R = new Set(); let pairs = 0;
+      const L = new Set(), R = new Set(), LN = new Set(), RN = new Set(); let pairs = 0, ok = 0;
+      // 내부 주소의 앞 3자리(예: 192.168.0)만 비교: 같으면 같은 와이파이 망
+      const net = (c) => { const a = c.address || c.ip || ''; return c.candidateType === 'host' && /^\d+\.\d+\.\d+\.\d+$/.test(a) ? a.split('.').slice(0, 3).join('.') : null; };
       st.forEach((x) => {
-        if (x.type === 'local-candidate') L.add(kind(x));
-        if (x.type === 'remote-candidate') R.add(kind(x));
-        if (x.type === 'candidate-pair') pairs++;
+        if (x.type === 'local-candidate') { L.add(kind(x)); const n = net(x); if (n) LN.add(n); }
+        if (x.type === 'remote-candidate') { R.add(kind(x)); const n = net(x); if (n) RN.add(n); }
+        if (x.type === 'candidate-pair') { pairs++; if (x.state === 'succeeded') ok++; }
       });
-      return ` (진단: 이 폰 ${[...L].join('·') || '없음'} / 카메라 폰 ${[...R].join('·') || '없음'} / 시도 ${pairs})`;
+      const same = [...LN].some((n) => RN.has(n));
+      const nets = LN.size && RN.size ? ` / 망 ${[...LN].join(',')} ↔ ${[...RN].join(',')} ${same ? '같음' : '다름'}` : '';
+      return ` (진단: 이 폰 ${[...L].join('·') || '없음'} / 카메라 폰 ${[...R].join('·') || '없음'} / 시도 ${pairs} 성공 ${ok}${nets})`;
     } catch { return ''; }
   }
 
