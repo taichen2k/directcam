@@ -425,11 +425,20 @@ function startMonitor(code) {
     camId = idOf(c);
     store.set('dc_last_cam', codeOf(camId));
     setStatus('mon', '연결 중', '');
+    const slow = setTimeout(() => { if (mode === 'mon' && !peer?.open) setStatus('mon', '중계 서버 연결 안 됨 · 인터넷 확인', 'off'); }, 10000);
     await peerReady;
+    clearTimeout(slow);
     if (mode !== 'mon') return;
     try { conn?.close(); } catch {}
     const cn = peer.connect(camId, { reliable: true, serialization: 'binary' });
     conn = cn;
+    // 카메라 폰은 찾았는데 15초 안에 직접 연결이 안 되면: 두 폰이 서로 닿지 않는 네트워크(다른 와이파이·LTE·손님용 와이파이 등)
+    setTimeout(() => {
+      if (conn !== cn || cn.open || mode !== 'mon') return;
+      setStatus('mon', '직접 연결 안 됨 · 네트워크 확인', 'off');
+      toast('두 폰이 직접 연결되지 않습니다. 한쪽 폰의 핫스팟에 다른 폰을 연결한 뒤 다시 해 보세요.', 6000);
+      scheduleRetry();
+    }, 15000);
     cn.on('open', () => {
       clearTimeout(retryTimer);
       setStatus('mon', '연결됨', 'on');
