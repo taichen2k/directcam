@@ -234,13 +234,22 @@ async function startCamera() {
   // 모니터 폰에서 가운데 빨간 점을 누르면 가운데로 초점을 다시 맞춤 (접사 중이면 접사를 끄고 자동 초점으로)
   async function refocus() {
     if (macroOn) await setMacro(false);
+    let done = false;
+    // 이미 맞았다고 보고 렌즈가 안 움직이는 경우가 있어, 초점을 먼 곳으로 한 번 풀었다가 다시 가운데로 잡게 함
+    const fd = caps.focusDistance;
+    if (fModes.includes('manual') && fd) {
+      const far = Number.isFinite(fd.max) ? fd.max : fd.min * 20;
+      try { await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: far }] }); } catch {}
+      await new Promise((r) => setTimeout(r, 300));
+    }
     if (fModes.includes('single-shot')) {
-      await centerFocus('single-shot');
+      await centerFocus('single-shot'); done = true;
       setTimeout(() => { if (!macroOn && fModes.includes('continuous')) centerFocus('continuous'); }, 1500);
     } else if (fModes.includes('continuous')) {
-      if (fModes.includes('manual')) { try { await track.applyConstraints({ advanced: [{ focusMode: 'manual' }] }); } catch {} }
-      centerFocus('continuous');
+      await centerFocus('continuous'); done = true;
     }
+    // 결과를 모니터 폰에 알려 줌 (이 카메라가 웹에서 초점 조절을 허용하는지 확인용)
+    send({ t: 'focused', ok: done, modes: fModes.join(', ') });
   }
 
   // 사진 = 모니터에 보내는 바로 그 영상 화면 (화각·확대·방향이 모니터 화면과 똑같음)
@@ -512,6 +521,8 @@ async function startMonitor(code) {
     } else if (m.t === 'state') {
       if ('torch' in m) { torchOn = !!m.torch; $('tTorch').classList.toggle('on', torchOn); }
       if ('macro' in m) { macroOn = !!m.macro; $('tMacro').classList.toggle('on', macroOn); }
+    } else if (m.t === 'focused') {
+      toast(m.ok ? '가운데로 초점을 다시 맞췄습니다' : `이 카메라 폰은 브라우저에서 초점 조절을 허용하지 않습니다${m.modes ? ' (' + m.modes + ')' : ''}`, 3000);
     } else if (m.t === 'busy') {
       flash($('monFlash'));
       setStatus('mon', '사진 받는 중', 'on');
