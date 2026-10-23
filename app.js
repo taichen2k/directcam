@@ -318,6 +318,25 @@ async function startCamera() {
   cleanup.push(() => { if (shots.length) setTimeout(() => openSaveSheet(shots.slice()), 150); });
   $('camSelfShot').onclick = () => shoot(null);
 
+  // 모니터 화면을 선명하게: 화질(해상도)을 낮추지 말고 데이터를 넉넉히 써서 보내도록 (같은 와이파이라 데이터 요금 없음)
+  try { track.contentHint = 'detail'; } catch {}
+  function sharpStream(cl) {
+    const pc = cl?.peerConnection; if (!pc) return;
+    const tune = async () => {
+      const s = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (!s) return;
+      try {
+        const p = s.getParameters();
+        if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+        p.encodings[0].maxBitrate = 8000000;
+        p.encodings[0].scaleResolutionDownBy = 1;
+        p.degradationPreference = 'maintain-resolution';
+        await s.setParameters(p);
+      } catch {}
+    };
+    pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') tune(); });
+    tune();
+  }
+
   // 고정 ID: 한 번 연결한 모니터폰은 다음에도 같은 링크로 재접속 가능
   let myId = store.get('dc_cam_id') || ID_PREFIX + randCode();
   function openPeer(retry) {
@@ -354,6 +373,7 @@ async function startCamera() {
       conn = c;
       c.on('open', () => {
         call = peer.call(c.peer, stream);
+        sharpStream(call);
         setStatus('cam', '모니터 폰 연결됨', 'on');
         showPairing(false);
         send({ t: 'hello', torch: torchOK, torchOn, macro: macroOK, macroOn, zoom: zoomCap && { ...zoomCap, value: zoomWant } });
