@@ -10,14 +10,29 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
 
+// 중계 서버(TURN): 두 폰 사이 직접 길이 막힌 네트워크에서도 연결되게 함. 주소가 비어 있으면 사용 안 함
+// Metered 무료 TURN: https://<앱이름>.metered.live/api/v1/turn/credentials?apiKey=<키>
+const TURN_URL = '';
+const STUN = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+let iceCache = null;
+async function loadIce() {
+  if (!TURN_URL) return STUN;
+  if (iceCache) return iceCache;
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 5000);
+    const list = await fetch(TURN_URL, { signal: ctl.signal, cache: 'no-store' }).then((r) => r.json());
+    clearTimeout(t);
+    if (Array.isArray(list) && list.length) iceCache = [...STUN, ...list];
+  } catch {}
+  return iceCache || STUN;
+}
+loadIce();
+
 // 시그널링 서버: 기본은 PeerJS 공개 서버. 테스트용으로 ?sig=host:port 지정 가능
 function peerOptions() {
   const o = {
     debug: 1,
-    config: { iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ] },
+    config: { iceServers: iceCache || STUN },
   };
   const sig = qs.get('sig');
   if (sig) {
@@ -148,6 +163,8 @@ async function startCamera() {
     toast('카메라 권한을 허용해 주세요. 주소창 왼쪽 자물쇠에서 바꿀 수 있습니다.', 5000);
     return;
   }
+  await loadIce();
+  if (mode !== 'cam') { stream.getTracks().forEach((t) => t.stop()); return; }
   const video = $('camVideo');
   video.srcObject = stream; video.play().catch(() => {});
   const track = stream.getVideoTracks()[0];
@@ -360,8 +377,14 @@ function drawQR(text) {
 }
 
 /* ============================ 모니터폰 ============================ */
-function startMonitor(code) {
+async function startMonitor(code) {
   mode = 'mon'; show('mon'); keepAwake();
+  setStatus('mon', '준비 중', '');
+  // 같은 와이파이·핫스팟에서 직접 연결되도록: 카메라 권한이 있어야 브라우저가 이 폰의 내부 주소를 상대에게 알려 줌
+  // (권한이 없으면 주소를 가려서 보내는데, 일부 폰·브라우저 조합에서는 상대가 그 주소를 못 알아봐 연결이 안 됨)
+  try { const s = await navigator.mediaDevices.getUserMedia({ video: true }); s.getTracks().forEach((t) => t.stop()); } catch {}
+  await loadIce();
+  if (mode !== 'mon') return;
   const video = $('monVideo');
   let conn = null, camId = null, retryTimer = null, connected = false;
   let timer = Number(store.get('dc_timer') || 0);
@@ -435,7 +458,7 @@ function startMonitor(code) {
     setTimeout(() => {
       if (conn !== cn || cn.open || mode !== 'mon') return;
       setStatus('mon', '직접 연결 안 됨 · 네트워크 확인', 'off');
-      toast('두 폰이 직접 연결되지 않습니다. 한쪽 폰의 핫스팟에 다른 폰을 연결한 뒤 다시 해 보세요.', 6000);
+      iceReport(cn).then((r) => toast('두 폰이 직접 연결되지 않습니다. 한쪽 폰의 핫스팟에 다른 폰을 연결한 뒤 다시 해 보세요.' + r, 8000));
       scheduleRetry();
     }, 15000);
     cn.on('open', () => {
@@ -456,6 +479,21 @@ function startMonitor(code) {
       scheduleRetry();
     };
     cn.on('close', lost); cn.on('error', lost);
+  }
+
+  // 연결 실패 원인 확인용: 양쪽이 주고받은 주소 종류 (내부 주소/가린 주소/외부 주소)
+  async function iceReport(cn) {
+    try {
+      const st = await cn.peerConnection.getStats();
+      const kind = (c) => (c.candidateType === 'host' ? ((c.address || c.ip || '').endsWith('.local') ? '가림' : '내부') : c.candidateType === 'srflx' ? '외부' : c.candidateType);
+      const L = new Set(), R = new Set(); let pairs = 0;
+      st.forEach((x) => {
+        if (x.type === 'local-candidate') L.add(kind(x));
+        if (x.type === 'remote-candidate') R.add(kind(x));
+        if (x.type === 'candidate-pair') pairs++;
+      });
+      return ` (진단: 이 폰 ${[...L].join('·') || '없음'} / 카메라 폰 ${[...R].join('·') || '없음'} / 시도 ${pairs})`;
+    } catch { return ''; }
   }
 
   function onData(m) {
