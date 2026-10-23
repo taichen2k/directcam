@@ -458,7 +458,7 @@ async function startMonitor(code) {
     setTimeout(() => {
       if (conn !== cn || cn.open || mode !== 'mon') return;
       setStatus('mon', '직접 연결 안 됨 · 네트워크 확인', 'off');
-      iceReport(cn).then((r) => toast('두 폰이 직접 연결되지 않습니다. 한쪽 폰의 핫스팟에 다른 폰을 연결한 뒤 다시 해 보세요.' + r, 8000));
+      iceReport(cn).then((r) => { $('netDiag').textContent = r.trim(); $('netHelp').hidden = false; });
       scheduleRetry();
     }, 15000);
     cn.on('open', () => {
@@ -739,6 +739,8 @@ $('sheetSave').onclick = async () => {
   if (await saveToPhotos(sheetShots)) { toast(`${n}장을 저장했습니다`); closeSaveSheet(); }
 };
 $('sheetClose').onclick = closeSaveSheet;
+// 직접 연결이 안 될 때 안내 창 (크롬은 폰 설정에서 '주변 기기' 권한이 있어야 같은 와이파이의 다른 폰과 연결됨)
+$('netClose').onclick = () => { $('netHelp').hidden = true; };
 
 /* ============================ 앱 설치 ============================ */
 const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;

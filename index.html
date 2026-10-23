@@ -162,7 +162,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 #viewer .row .btn{padding:14px 16px}
 .btn.danger{color:var(--rec);border-color:rgba(255,74,61,.5)}
 #peek{position:fixed;left:16px;bottom:calc(250px + env(safe-area-inset-bottom,0px));z-index:25;width:84px;height:112px;object-fit:cover;border-radius:12px;border:2px solid var(--ok);box-shadow:0 6px 20px rgba(0,0,0,.5)}
-#saveSheet{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center}
+#saveSheet,.modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center}
 .sheet{width:100%;max-width:520px;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;display:flex;flex-direction:column;gap:12px;
   padding:20px max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
 .sheet b{font-size:18px}
@@ -171,6 +171,9 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .sheet .thumbs img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px}
 .sheet .row{display:flex;gap:8px}
 .sheet .row .btn{flex:1}
+.sheet .steps{margin:0;padding-left:20px;font-size:15px;line-height:1.8}
+.sheet .steps b{font-size:inherit}
+.sheet .diag{font-size:11px;opacity:.7}
 #saveSheet:not([hidden]) ~ .toast{bottom:auto;top:calc(24px + env(safe-area-inset-top,0px))}
 
 .toast{position:fixed;left:50%;bottom:calc(250px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:rgba(22,26,24,.95);
@@ -207,7 +210,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b><br><b>아이폰·아이패드 사파리</b>: 공유 버튼(□↑) → <b>홈 화면에 추가</b></p>
   </div>
   </div>
-  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v27</p>
+  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v28</p>
 </section>
 
 <!-- 카메라폰 -->
@@ -292,10 +295,24 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <div class="row"><button class="btn" id="sheetSave">모두 저장</button><button class="btn ghost" id="sheetClose">닫기</button></div>
   </div>
 </div>
+<div id="netHelp" class="modal" hidden>
+  <div class="sheet">
+    <b>두 폰이 직접 연결되지 않습니다</b>
+    <p>크롬으로 쓰는 폰이 있다면, 그 폰에서 아래 권한을 켜 주세요. 처음 한 번만 하면 됩니다.</p>
+    <ol class="steps">
+      <li>폰 <b>설정 → 애플리케이션 → Chrome → 권한</b></li>
+      <li><b>주변 기기</b>(근처 기기)를 <b>허용</b></li>
+      <li>크롬을 완전히 닫았다가 다시 열기</li>
+    </ol>
+    <p>그래도 안 되면 두 폰이 같은 와이파이인지 확인하거나, 한쪽 폰의 핫스팟에 다른 폰을 연결해 보세요. 엣지나 삼성 인터넷으로 열어도 됩니다.</p>
+    <p class="diag" id="netDiag"></p>
+    <div class="row"><button class="btn" id="netClose">확인</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=27"></script>
+<script src="app.js?v=28"></script>
 </body>
 </html>
