@@ -143,7 +143,7 @@ function goHome(msg) {
   if (typeof msg === 'string') setTimeout(() => toast(msg, 3500), 50);
   try { wakeLock?.release(); } catch {}
   exitFull();
-  history.replaceState(null, '', location.pathname + (qs.get('sig') ? '?sig=' + qs.get('sig') : ''));
+  history.replaceState(history.state, '', location.pathname + (qs.get('sig') ? '?sig=' + qs.get('sig') : ''));
   show('home');
 }
 document.querySelectorAll('[data-home]').forEach((b) => b.addEventListener('click', goHome));
@@ -327,9 +327,8 @@ async function startCamera() {
       try {
         const p = s.getParameters();
         if (!p.encodings || !p.encodings.length) p.encodings = [{}];
-        p.encodings[0].maxBitrate = 8000000;
-        p.encodings[0].scaleResolutionDownBy = 1;
-        p.degradationPreference = 'maintain-resolution';
+        p.encodings[0].maxBitrate = 4000000;
+        p.degradationPreference = 'balanced'; // 해상도만 고집하면 사진 전송이 느려져서 균형 모드
         await s.setParameters(p);
       } catch {}
     };
@@ -772,6 +771,27 @@ $('sheetSave').onclick = async () => {
 $('sheetClose').onclick = closeSaveSheet;
 // 직접 연결이 안 될 때 안내 창 (크롬은 폰 설정에서 '주변 기기' 권한이 있어야 같은 와이파이의 다른 폰과 연결됨)
 $('netClose').onclick = () => { $('netHelp').hidden = true; };
+
+/* ============================ 뒤로가기 버튼 ============================ */
+// 폰의 뒤로가기를 누르면 앱이 바로 닫히지 않도록: 열린 창 닫기 → 촬영 화면에서 첫 화면으로 → 첫 화면에서는 한 번 더 눌러야 종료
+let backArmed = false, backTimer = null;
+const pushGuard = () => { if (!history.state || !history.state.dcGuard) history.pushState({ dcGuard: 1 }, ''); };
+addEventListener('popstate', () => {
+  if (!$('viewer').hidden) closeViewer();
+  else if (!$('netHelp').hidden) $('netHelp').hidden = true;
+  else if (!$('saveSheet').hidden) closeSaveSheet();
+  else if (!$('installHelp').hidden) $('installHelp').hidden = true;
+  else if (mode) goHome();
+  else if (!backArmed) {
+    backArmed = true;
+    toast('뒤로 버튼을 한 번 더 누르면 종료됩니다', 2000);
+    clearTimeout(backTimer);
+    backTimer = setTimeout(() => { backArmed = false; pushGuard(); }, 2000);
+    return; // 2초 안에 한 번 더 누르면 그대로 앱 종료
+  }
+  pushGuard();
+});
+pushGuard();
 
 /* ============================ 앱 설치 ============================ */
 const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
