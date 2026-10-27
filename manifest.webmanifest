@@ -1,6 +1,6 @@
 {
-  "name": "정수리 Cam",
-  "short_name": "정수리 Cam",
+  "name": "정수리캠",
+  "short_name": "정수리캠",
   "description": "폰 두 대로 정수리를 찍고 실시간으로 보면서 촬영하는 앱",
   "id": "./",
   "start_url": "./",
