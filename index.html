@@ -171,16 +171,9 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .slot span{font-size:13px;font-weight:600}
 #slotA.on{border-color:var(--warn)}
 #slotB.on{border-color:var(--ok)}
-.modes{display:flex;gap:6px;width:100%}
-.modes .chip{flex:1}
 .cmp{flex:1;min-height:0;position:relative;border-radius:12px;overflow:hidden;background:#000}
 .side{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;gap:3px}
 .side img{width:100%;height:100%;object-fit:contain;background:#000;min-width:0}
-.slide{position:absolute;inset:0;touch-action:none;--split:50%}
-.slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-.slide img.top{clip-path:inset(0 0 0 var(--split))}
-.handle{position:absolute;top:0;bottom:0;left:var(--split);width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.6);pointer-events:none}
-.handle::after{content:"◀ ▶";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;color:#111;font-size:11px;padding:6px 8px;border-radius:999px;white-space:nowrap}
 .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--dim);font-size:14px;line-height:1.7;margin:0}
 .quick{display:flex;gap:6px}
 .quick .chip{flex:1;padding:10px 4px}
@@ -273,7 +266,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b><br><b>아이폰·아이패드 사파리</b>: 공유 버튼(□↑) → <b>홈 화면에 추가</b></p>
   </div>
   </div>
-  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v34</p>
+  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v35</p>
 </section>
 
 <!-- 카메라폰 -->
@@ -355,11 +348,9 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   <div class="slots">
     <button class="slot on" id="slotA"><small>기준 (노랑)</small><span id="slotAd">-</span></button>
     <button class="slot" id="slotB"><small>비교 (초록)</small><span id="slotBd">-</span></button>
-    <div class="modes"><button class="chip" id="mSide">나란히</button><button class="chip" id="mSlide">슬라이드</button></div>
   </div>
   <div class="cmp">
     <div class="side" id="cmpSide"><img id="imgA1" alt="기준 사진"><img id="imgB1" alt="비교 사진"></div>
-    <div class="slide" id="cmpSlide" hidden><img id="imgA2" alt="기준 사진"><img id="imgB2" alt="비교 사진" class="top"><div class="handle"></div></div>
     <p class="empty" id="libEmpty" hidden>아직 사진이 없습니다.<br>촬영하면 자동으로 여기에 모이고,<br>예전 사진은 위의 「사진 불러오기」로 갤러리에서 넣을 수 있습니다.</p>
   </div>
   <div class="quick" id="libQuick"><button class="chip" data-months="1">1개월 전</button><button class="chip" data-months="3">3개월 전</button><button class="chip" data-months="6">6개월 전</button><button class="chip danger" id="libSelMode">삭제</button></div>
@@ -422,6 +413,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>

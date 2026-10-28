@@ -1016,8 +1016,7 @@ function closeRefSheet() {
 }
 
 /* ============================ 사진 비교 화면 ============================ */
-let libList = [], slotA = null, slotB = null, active = 'A', split = 50;
-let libMode = store.get('dc_cmp') === 'slide' ? 'slide' : 'side';
+let libList = [], slotA = null, slotB = null, active = 'A';
 const libUrls = new Map();
 function urlOf(p, thumb) {
   const k = p.id + (thumb ? 't' : 'f');
@@ -1066,14 +1065,11 @@ function renderLib() {
   const label = (p) => (p ? `${fmtDate(p.date).slice(0, 10)} (${Math.floor((p.date - first.date) / DAY) + 1}일째)${p.src === 'file' ? ' · 날짜 추정' : ''}` : '-');
   $('slotAd').textContent = label(A); $('slotBd').textContent = label(B);
   $('slotA').classList.toggle('on', active === 'A' && !selMode); $('slotB').classList.toggle('on', active === 'B' && !selMode);
-  $('mSide').classList.toggle('on', libMode === 'side'); $('mSlide').classList.toggle('on', libMode === 'slide');
   const empty = !libList.length;
   $('libEmpty').hidden = !empty;
-  $('cmpSide').hidden = empty || libMode !== 'side';
-  $('cmpSlide').hidden = empty || libMode !== 'slide';
+  $('cmpSide').hidden = empty;
   const setImg = (id, p) => { if (p) $(id).src = urlOf(p); else $(id).removeAttribute('src'); };
-  setImg('imgA1', A); setImg('imgB1', B); setImg('imgA2', A); setImg('imgB2', B);
-  $('cmpSlide').style.setProperty('--split', split + '%');
+  setImg('imgA1', A); setImg('imgB1', B);
   document.querySelectorAll('#lib [data-months]').forEach((b) => { b.disabled = !photoMonthsAgo(Number(b.dataset.months)); });
   $('libQuick').hidden = selMode; $('libSelBar').hidden = !selMode;
   $('libSelMode').disabled = empty;
@@ -1105,8 +1101,6 @@ $('pickLib').onclick = openLib;
 $('libBack').onclick = closeLib;
 $('slotA').onclick = () => { selMode = false; active = 'A'; renderLib(); };
 $('slotB').onclick = () => { selMode = false; active = 'B'; renderLib(); };
-$('mSide').onclick = () => { libMode = 'side'; store.set('dc_cmp', libMode); renderLib(); };
-$('mSlide').onclick = () => { libMode = 'slide'; store.set('dc_cmp', libMode); renderLib(); };
 document.querySelectorAll('#lib [data-months]').forEach((b) => {
   b.onclick = () => {
     const p = photoMonthsAgo(Number(b.dataset.months)); if (!p) return;
@@ -1146,15 +1140,6 @@ $('libFile').onchange = async (e) => {
   renderLib();
   toast(`${n}장을 넣었습니다` + (guess ? ` · ${guess}장은 사진 속 날짜를 못 읽어 파일 날짜로 넣었습니다` : ''), 4000);
 };
-// 슬라이드 비교: 화면을 좌우로 끌어 기준·비교 사진 경계를 움직임
-(() => {
-  const el = $('cmpSlide'); let drag = false;
-  const at = (e) => { const r = el.getBoundingClientRect(); split = Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)); el.style.setProperty('--split', split + '%'); };
-  el.addEventListener('pointerdown', (e) => { drag = true; el.setPointerCapture(e.pointerId); at(e); });
-  el.addEventListener('pointermove', (e) => { if (drag) at(e); });
-  ['pointerup', 'pointercancel'].forEach((ev) => el.addEventListener(ev, () => { drag = false; }));
-})();
-
 /* ============================ 뒤로가기 버튼 ============================ */
 // 폰의 뒤로가기를 누르면 앱이 바로 닫히지 않도록: 열린 창 닫기 → 촬영 화면에서 첫 화면으로 → 첫 화면에서는 한 번 더 눌러야 종료
 let backArmed = false, backTimer = null;
