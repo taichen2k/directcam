@@ -138,6 +138,60 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .zlbl.on{color:var(--warn);border-color:var(--warn)}
 .zlbl{min-width:52px;padding:6px 10px;border-radius:999px;background:rgba(22,26,24,.8);border:1px solid var(--line);font-size:14px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
 #monStage{touch-action:none}
+.guide em{position:absolute;left:50%;top:50%;width:14vmin;aspect-ratio:1;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.65);border-radius:50%}
+.guide u{position:absolute;left:50%;top:50%;width:62vmin;height:62vmin;transform:translate(-50%,-50%)}
+.guide u::before,.guide u::after{content:"";position:absolute;background:rgba(255,255,255,.5)}
+.guide u::before{left:0;right:0;top:50%;height:1px}
+.guide u::after{top:0;bottom:0;left:50%;width:1px}
+.ghostimg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:.35}
+.lighttip{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;background:rgba(244,192,78,.94);color:#111;white-space:nowrap;pointer-events:none}
+.lighttip.info{background:rgba(22,26,24,.88);color:var(--fg);border:1px solid var(--line)}
+.ghostbar{position:absolute;left:0;right:0;bottom:calc(240px + env(safe-area-inset-bottom,0px));z-index:6;display:flex;align-items:center;gap:10px;
+  padding:0 max(20px,env(safe-area-inset-right,0px)) 0 max(20px,env(safe-area-inset-left,0px))}
+.ghostbar input{flex:1;min-width:0;accent-color:var(--warn);height:28px}
+#gRef{white-space:nowrap;font-weight:500;font-size:13px;max-width:52vw;overflow:hidden;text-overflow:ellipsis}
+.btn:disabled{opacity:.4}
+.chip:disabled{opacity:.35}
+.chip.danger{color:var(--rec)}
+.btn.ghost.on{border-color:var(--warn);color:var(--warn)}
+.chk{display:flex;gap:12px;align-items:center;font-size:16px;padding:4px 0}
+.chk input{width:22px;height:22px;accent-color:var(--rec);flex:none}
+.sheet .thumbs .pick{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim);align-items:center}
+.sheet .thumbs .pick.on img{outline:3px solid var(--warn);outline-offset:-3px}
+
+/* 사진 비교 */
+#lib{background:var(--bg);gap:10px;padding:env(safe-area-inset-top,0) max(12px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.libbar{display:flex;align-items:center;gap:10px;min-height:52px;padding-top:6px}
+.libbar b{flex:1;font-size:17px}
+.slots{display:flex;gap:8px;flex-wrap:wrap}
+.slot{flex:1;min-width:130px;text-align:left;padding:8px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.slot small{font-size:11px;font-weight:700}
+#slotA small{color:var(--warn)}
+#slotB small{color:var(--ok)}
+.slot span{font-size:13px;font-weight:600}
+#slotA.on{border-color:var(--warn)}
+#slotB.on{border-color:var(--ok)}
+.modes{display:flex;gap:6px;width:100%}
+.modes .chip{flex:1}
+.cmp{flex:1;min-height:0;position:relative;border-radius:12px;overflow:hidden;background:#000}
+.side{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.side img{width:100%;height:100%;object-fit:contain;background:#000;min-width:0}
+.slide{position:absolute;inset:0;touch-action:none;--split:50%}
+.slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.slide img.top{clip-path:inset(0 0 0 var(--split))}
+.handle{position:absolute;top:0;bottom:0;left:var(--split);width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.6);pointer-events:none}
+.handle::after{content:"◀ ▶";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;color:#111;font-size:11px;padding:6px 8px;border-radius:999px;white-space:nowrap}
+.empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--dim);font-size:14px;line-height:1.7;margin:0}
+.quick{display:flex;gap:6px}
+.quick .chip{flex:1;padding:10px 4px}
+.libstrip{display:flex;gap:6px;overflow-x:auto;min-height:100px;flex:none}
+.libstrip button{flex:none;width:64px;display:flex;flex-direction:column;gap:3px;align-items:center;font-size:10.5px;color:var(--dim);position:relative}
+.libstrip img{width:64px;height:80px;object-fit:cover;border-radius:8px;border:2px solid transparent}
+.libstrip .a img{border-color:var(--warn)}
+.libstrip .b img{border-color:var(--ok)}
+.libstrip i{position:absolute;top:4px;left:4px;font-style:normal;font-size:10px;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--warn);color:#111}
+.libstrip .b i{background:var(--ok)}
+.role-lib{grid-column:1/-1}
 .strip img{flex:none;width:58px;height:58px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
 .strip img:first-child{border-color:var(--ok)}
 
@@ -152,6 +206,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   .camtools{left:auto;top:0;flex-direction:column;justify-content:center;
     padding:12px max(14px,env(safe-area-inset-right,0px)) 12px 28px;background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.6))}
   .bar{right:200px}
+  .ghostbar{right:200px;bottom:calc(58px + env(safe-area-inset-bottom,0px))}
 }
 
 /* 사진 보기 */
@@ -195,6 +250,10 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <button class="role" id="pickMon">
       <svg viewBox="0 0 24 24" fill="none" stroke="#eef1ee" stroke-width="1.6"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/><circle cx="12" cy="10" r="3"/></svg>
       <div><b>모니터 폰</b><span>손에 들고 화면을 보며 촬영하는 폰</span></div>
+    </button>
+    <button class="role" id="pickLib">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f4c04e" stroke-width="1.6"><rect x="2.5" y="5" width="8.5" height="14" rx="1.5"/><rect x="13" y="5" width="8.5" height="14" rx="1.5"/></svg>
+      <div><b>사진 비교</b><span>날짜별 정수리 사진을 나란히 비교</span></div>
     </button>
   </div>
   <div class="guidebox">
@@ -246,7 +305,9 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
   </div>
   <div class="stage" id="monStage">
     <video id="monVideo" playsinline muted autoplay disablepictureinpicture></video>
-    <div class="guide" id="guide" hidden><i></i></div>
+    <div class="guide" id="guide" hidden><i></i><em></em><u></u></div>
+    <img id="ghost" class="ghostimg" alt="" hidden>
+    <div class="lighttip" id="lightTip" hidden></div>
     <button class="focusdot" id="focusDot" aria-label="가운데로 초점 다시 맞추기" hidden></button>
     <div class="count" id="count" hidden></div>
     <div class="flash" id="monFlash"></div>
@@ -265,6 +326,11 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <button class="zlbl" id="tMacro" hidden>접사</button>
     <button class="zlbl" id="zReset" aria-label="배율 초기화"><span id="zLbl">1.0x</span></button>
   </div>
+  <div class="ghostbar" id="ghostBar" hidden>
+    <button class="zlbl" id="gRef">기준 사진</button>
+    <input type="range" id="gAlpha" min="10" max="80" step="5" value="35" aria-label="겹쳐보기 투명도">
+    <span class="zlbl" id="gPct">35%</span>
+  </div>
   <div class="dock">
     <button class="shutter" id="shutter" disabled aria-label="촬영"></button>
     <div class="tools">
@@ -274,8 +340,27 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
       <button class="tool" id="tAuto"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M12 3v11m0 0-4-4m4 4 4-4M4 15v4.5h16V15"/></svg><span>자동 저장</span></button>
       <button class="tool" id="tMirror"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M12 3v18M8 7 3 12l5 5V7ZM16 7l5 5-5 5V7Z"/></svg><span>좌우 반전</span></button>
       <button class="tool" id="tGuide"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/></svg><span>가이드</span></button>
+      <button class="tool" id="tGhost"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg><span>겹쳐보기</span></button>
     </div>
   </div>
+</section>
+
+<!-- 사진 비교 -->
+<section id="lib" class="screen" hidden>
+  <div class="libbar"><button class="back" id="libBack">← 처음</button><b>사진 비교</b><button class="chip" id="libImport">사진 불러오기</button></div>
+  <div class="slots">
+    <button class="slot on" id="slotA"><small>기준 (노랑)</small><span id="slotAd">-</span></button>
+    <button class="slot" id="slotB"><small>비교 (초록)</small><span id="slotBd">-</span></button>
+    <div class="modes"><button class="chip" id="mSide">나란히</button><button class="chip" id="mSlide">슬라이드</button></div>
+  </div>
+  <div class="cmp">
+    <div class="side" id="cmpSide"><img id="imgA1" alt="기준 사진"><img id="imgB1" alt="비교 사진"></div>
+    <div class="slide" id="cmpSlide" hidden><img id="imgA2" alt="기준 사진"><img id="imgB2" alt="비교 사진" class="top"><div class="handle"></div></div>
+    <p class="empty" id="libEmpty" hidden>아직 사진이 없습니다.<br>촬영하면 자동으로 여기에 모이고,<br>예전 사진은 위의 「사진 불러오기」로 갤러리에서 넣을 수 있습니다.</p>
+  </div>
+  <div class="quick"><button class="chip" data-months="1">1개월 전</button><button class="chip" data-months="3">3개월 전</button><button class="chip" data-months="6">6개월 전</button><button class="chip danger" id="libDel">삭제</button></div>
+  <div class="libstrip" id="libStrip"></div>
+  <input type="file" id="libFile" accept="image/*" multiple hidden>
 </section>
 
 <div id="viewer" hidden>
@@ -309,10 +394,28 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <div class="row"><button class="btn" id="netClose">확인</button></div>
   </div>
 </div>
+<div id="checkSheet" class="modal" hidden>
+  <div class="sheet">
+    <b>촬영 전 확인</b>
+    <p>매번 같은 조건으로 찍어야 실제 변화를 정확히 비교할 수 있습니다.</p>
+    <label class="chk"><input type="checkbox" class="ck"> 머리를 완전히 말렸어요</label>
+    <label class="chk"><input type="checkbox" class="ck"> 늘 찍던 장소·조명이에요</label>
+    <label class="chk"><input type="checkbox" class="ck"> 빗질로 머리를 정리했어요</label>
+    <div class="row"><button class="btn ghost" id="ckSkip">건너뛰기</button><button class="btn" id="ckGo" disabled>촬영</button></div>
+  </div>
+</div>
+<div id="refSheet" class="modal" hidden>
+  <div class="sheet">
+    <b>겹쳐 볼 기준 사진</b>
+    <div class="row"><button class="btn ghost" id="refFirst">첫 사진</button><button class="btn ghost" id="refLast">직전 사진</button></div>
+    <div class="thumbs" id="refThumbs"></div>
+    <div class="row"><button class="btn ghost" id="refClose">닫기</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=32"></script>
+<script src="app.js?v=33"></script>
 </body>
 </html>

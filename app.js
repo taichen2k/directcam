@@ -109,7 +109,7 @@ let monSend = null;       // 모니터 폰 → 카메라 폰 메시지 (사진 �
 addEventListener('pagehide', () => { if (mode) goHome(); });
 
 function show(id) {
-  for (const s of ['home', 'cam', 'mon']) $(s).hidden = s !== id;
+  for (const s of ['home', 'cam', 'mon', 'lib']) $(s).hidden = s !== id;
 }
 // 촬영·모니터 화면은 전체화면으로. 브라우저 정책상 화면을 한 번 터치해야 켜짐
 // 아이폰은 웹 전체화면을 지원하지 않음(홈 화면에 설치하면 전체화면), 아이패드는 webkit 방식
@@ -311,6 +311,7 @@ async function startCamera() {
       mirror: !!opt?.mirror, stamp: opt && 'stamp' in opt ? !!opt.stamp : stampOn,
     });
     shots.push({ photo, name });
+    libAdd(photo, name, shotAt.getTime());
     if (IOS) toast(`사진 ${shots.length}장 보관 중 · 끝나면 사진 앱에 저장`, 2500); // 아이폰은 버튼을 눌러야만 저장 가능
     else { saveBlob(photo, name); toast('사진을 저장했습니다'); }
     if (opt && conn?.open) send({ t: 'photo', name, type: 'image/jpeg', later: IOS, buf: await photo.arrayBuffer() });
@@ -559,10 +560,12 @@ async function startMonitor(code) {
   cleanup.push(() => { if (monShots.length) setTimeout(() => openSaveSheet(monShots.splice(0), 'mon'), 150); });
   function receivePhoto(m) {
     const blob = new Blob([m.buf], { type: m.type || 'image/jpeg' });
+    const libP = libAdd(blob, m.name, dateFromName(m.name));
+    libP.then(() => ghostRefresh());
     const camMsg = m.later ? '카메라 폰에 보관했습니다 (끝나면 저장)' : '카메라 폰에 저장했습니다';
     if (autoSave && IOS) { monShots.push({ photo: blob, name: m.name }); peekPhoto(blob); toast(`이 폰에 ${monShots.length}장 보관 중 · 끝나면 사진 앱에 저장`, 2500); }
     else if (autoSave) { saveBlob(blob, m.name); peekPhoto(blob); toast(m.later ? '이 폰에 저장했습니다 (카메라 폰은 끝나면 저장)' : '두 폰 모두 저장했습니다'); }
-    else { openViewer(blob, m.name); toast(camMsg); }
+    else { openViewer(blob, m.name, libP); toast(camMsg); }
   }
   monSend = send;
 
@@ -575,8 +578,22 @@ async function startMonitor(code) {
     store.set('dc_timer', timer);
     $('tTimerLbl').textContent = timerLabel(); $('tTimer').classList.toggle('on', !!timer);
   };
-  let counting = false;
-  $('shutter').onclick = async () => {
+  let counting = false, checkedOnce = false;
+  // 촬영 전 체크리스트: 연결 후 첫 촬영 때 한 번 확인 (건너뛰기 가능)
+  $('shutter').onclick = () => {
+    if (!connected || busy || counting) return;
+    if (!checkedOnce) { openCheck(); return; }
+    doShoot();
+  };
+  function openCheck() {
+    document.querySelectorAll('#checkSheet .ck').forEach((c) => { c.checked = false; });
+    $('ckGo').disabled = true; $('checkSheet').hidden = false;
+  }
+  document.querySelectorAll('#checkSheet .ck').forEach((c) => { c.onchange = () => { $('ckGo').disabled = ![...document.querySelectorAll('#checkSheet .ck')].every((x) => x.checked); }; });
+  $('ckGo').onclick = () => { checkedOnce = true; $('checkSheet').hidden = true; doShoot(); };
+  $('ckSkip').onclick = () => { checkedOnce = true; $('checkSheet').hidden = true; doShoot(); };
+  cleanup.push(() => { $('checkSheet').hidden = true; });
+  const doShoot = async () => {
     if (!connected || busy || counting) return;
     if (timer) {
       counting = true;
@@ -655,6 +672,74 @@ async function startMonitor(code) {
   };
   updateTransform();
 
+  // 겹쳐보기: 기준 사진(첫 사진·직전 사진·직접 고른 사진)을 반투명하게 겹쳐 같은 위치·거리로 맞춤
+  let ghostOn = store.get('dc_ghost') === '1';
+  let ghostRef = store.get('dc_ghost_ref') || 'first';
+  let ghostAlpha = Number(store.get('dc_ghost_a') || 35);
+  let refBright = null, ghostUrl = null;
+  async function ghostRefresh() {
+    const list = await LIB.all().catch(() => []);
+    if (mode !== 'mon') return;
+    const p = ghostRef === 'first' ? list[0] : ghostRef === 'last' ? list[list.length - 1] : (list.find((x) => String(x.id) === ghostRef) || list[0]);
+    if (ghostUrl) { URL.revokeObjectURL(ghostUrl); ghostUrl = null; }
+    if (p) { ghostUrl = URL.createObjectURL(p.blob); $('ghost').src = ghostUrl; refBright = p.bright ?? null; }
+    else { $('ghost').removeAttribute('src'); refBright = null; }
+    const kind = ghostRef === 'first' ? '첫 사진' : ghostRef === 'last' ? '직전' : '';
+    $('gRef').textContent = p ? `기준 ▾ ${kind} ${fmtDate(p.date, true)}`.replace('  ', ' ') : '기준 사진 없음';
+    applyGhost();
+  }
+  function applyGhost() {
+    $('ghost').hidden = !(ghostOn && $('ghost').getAttribute('src'));
+    $('ghostBar').hidden = !ghostOn;
+    $('ghost').style.opacity = ghostAlpha / 100;
+    $('tGhost').classList.toggle('on', ghostOn);
+    $('gAlpha').value = ghostAlpha; $('gPct').textContent = ghostAlpha + '%';
+  }
+  $('tGhost').onclick = async () => {
+    ghostOn = !ghostOn; store.set('dc_ghost', ghostOn ? '1' : '0');
+    await ghostRefresh();
+    if (ghostOn && !$('ghost').getAttribute('src')) toast('아직 앱에 저장된 사진이 없습니다. 한 장 찍으면 다음부터 겹쳐 볼 수 있습니다', 3500);
+  };
+  $('gAlpha').oninput = (e) => { ghostAlpha = Number(e.target.value); store.set('dc_ghost_a', ghostAlpha); applyGhost(); };
+  $('gRef').onclick = async () => {
+    const list = await LIB.all().catch(() => []);
+    const box = $('refThumbs'); box.querySelectorAll('img').forEach((i) => URL.revokeObjectURL(i.src)); box.innerHTML = '';
+    list.slice().reverse().forEach((p) => {
+      const b = document.createElement('button'); b.className = 'pick' + (String(p.id) === ghostRef ? ' on' : '');
+      const i = document.createElement('img'); i.src = URL.createObjectURL(p.thumb || p.blob); i.alt = p.name;
+      const s = document.createElement('span'); s.textContent = fmtDate(p.date, true);
+      b.append(i, s); b.onclick = () => setRef(String(p.id)); box.appendChild(b);
+    });
+    $('refFirst').classList.toggle('on', ghostRef === 'first'); $('refLast').classList.toggle('on', ghostRef === 'last');
+    $('refSheet').hidden = false;
+  };
+  const setRef = (r) => { ghostRef = r; store.set('dc_ghost_ref', r); closeRefSheet(); ghostRefresh(); };
+  $('refFirst').onclick = () => setRef('first');
+  $('refLast').onclick = () => setRef('last');
+  $('refClose').onclick = closeRefSheet;
+  ghostRefresh();
+  cleanup.push(() => {
+    closeRefSheet(); $('ghost').hidden = true; $('ghostBar').hidden = true; $('ghost').removeAttribute('src');
+    if (ghostUrl) URL.revokeObjectURL(ghostUrl); ghostUrl = null;
+  });
+
+  // 밝기 경고: 1초마다 화면 가운데 밝기를 재서 너무 어둡거나(조명 부족) 너무 밝으면(직사광선) 안내
+  const lc = document.createElement('canvas'); lc.width = lc.height = 48;
+  const lg = lc.getContext('2d', { willReadFrequently: true });
+  const lightTimer = setInterval(() => {
+    const tip = $('lightTip');
+    if (!connected || !video.videoWidth) { tip.hidden = true; return; }
+    const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(vw, vh) * 0.6;
+    try { lg.drawImage(video, (vw - s) / 2, (vh - s) / 2, s, s, 0, 0, 48, 48); } catch { return; }
+    const { mean, clip } = lumaOf(lg, 0, 0, 48, 48);
+    let msg = '', info = false;
+    if (mean < 40) msg = '어두워요 · 조명을 확인하세요';
+    else if (clip > 0.25 || mean > 215) msg = '너무 밝아요 · 직사광선을 피하세요';
+    else if (ghostOn && refBright != null && Math.abs(mean - refBright) > 35) { msg = mean > refBright ? '기준 사진보다 밝아요 · 조명을 맞춰 보세요' : '기준 사진보다 어두워요 · 조명을 맞춰 보세요'; info = true; }
+    tip.textContent = msg; tip.classList.toggle('info', info); tip.hidden = !msg;
+  }, 1000);
+  cleanup.push(() => { clearInterval(lightTimer); $('lightTip').hidden = true; });
+
   const guideOn = store.get('dc_guide') !== '0'; // 기본값: 가이드 켜짐
   $('guide').hidden = !guideOn; $('tGuide').classList.toggle('on', guideOn);
   $('tGuide').onclick = () => {
@@ -719,10 +804,10 @@ function saveBlob(blob, name) {
 }
 // 자동 저장 끔일 때 모니터 폰에서 묻는 창: 이 폰에 저장 / 삭제 / 닫기 (카메라 폰에는 이미 저장됨). 화면에 남기지 않음
 let viewing = null;
-function openViewer(blob, name) {
+function openViewer(blob, name, libP) {
   closeViewer();
   const url = URL.createObjectURL(blob);
-  viewing = { blob, name, url };
+  viewing = { blob, name, url, libP };
   $('viewImg').src = url; $('viewer').hidden = false;
 }
 function closeViewer() {
@@ -731,7 +816,11 @@ function closeViewer() {
   URL.revokeObjectURL(viewing.url); viewing = null;
 }
 $('vClose').onclick = () => closeViewer();
-$('vDelete').onclick = () => { if (viewing) { closeViewer(); toast('이 폰에서는 지웠습니다'); } };
+$('vDelete').onclick = () => {
+  if (!viewing) return;
+  viewing.libP?.then((id) => { if (id) LIB.del(id).catch(() => {}); });
+  closeViewer(); toast('이 폰에서는 지웠습니다');
+};
 $('vSave').onclick = async () => {
   if (!viewing) return;
   const v = viewing;
@@ -772,6 +861,160 @@ $('sheetClose').onclick = closeSaveSheet;
 // 직접 연결이 안 될 때 안내 창 (크롬은 폰 설정에서 '주변 기기' 권한이 있어야 같은 와이파이의 다른 폰과 연결됨)
 $('netClose').onclick = () => { $('netHelp').hidden = true; };
 
+/* ============================ 앱 안 사진첩 (겹쳐보기·비교용) ============================ */
+// 웹앱은 갤러리를 읽을 수 없어서, 찍은 사진을 이 폰의 앱 저장 공간(IndexedDB)에도 보관
+const LIB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('jeongsuricam', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos', { keyPath: 'id' });
+    r.onsuccess = () => res(r.result); r.onerror = () => { dbp = null; rej(r.error); };
+  }));
+  const run = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('photos', mode); const req = fn(t.objectStore('photos'));
+      t.oncomplete = () => res(req && req.result); t.onerror = t.onabort = () => rej(t.error);
+    });
+  };
+  return {
+    put: (o) => run('readwrite', (s) => s.put(o)),
+    del: (id) => run('readwrite', (s) => s.delete(id)),
+    all: async () => ((await run('readonly', (s) => s.getAll())) || []).sort((a, b) => a.date - b.date),
+  };
+})();
+const DAY = 86400000;
+const p2 = (n) => String(n).padStart(2, '0');
+function fmtDate(ms, short) {
+  const d = new Date(ms);
+  return short ? `${p2(d.getMonth() + 1)}.${p2(d.getDate())}` : `${d.getFullYear()}.${p2(d.getMonth() + 1)}.${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+// 파일 이름(20261018_160412.jpg)에서 촬영 일시를 읽음. 없으면 파일 날짜
+function dateFromName(n, fallback) {
+  const m = /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(n || '');
+  return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : (fallback || Date.now());
+}
+// 영역의 평균 밝기(0~255)와 하얗게 날아간 비율
+function lumaOf(g, x, y, w, h) {
+  const d = g.getImageData(x, y, Math.max(1, w), Math.max(1, h)).data;
+  let s = 0, n = 0, hi = 0;
+  for (let i = 0; i < d.length; i += 8) { const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11; s += l; n++; if (l > 245) hi++; }
+  return { mean: s / n, clip: hi / n };
+}
+async function libAdd(blob, name, date) {
+  try {
+    navigator.storage?.persist?.().catch(() => {});
+    const all = await LIB.all();
+    const dup = all.find((p) => p.name === name && Math.abs(p.date - date) < 1000);
+    if (dup) return dup.id;
+    const bmp = await createImageBitmap(blob);
+    const tw = 240, th = Math.max(1, Math.round(bmp.height * tw / bmp.width));
+    const c = document.createElement('canvas'); c.width = tw; c.height = th;
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(bmp, 0, 0, tw, th); bmp.close?.();
+    const bright = lumaOf(g, tw / 4 | 0, th / 4 | 0, tw / 2 | 0, th / 2 | 0).mean;
+    const thumb = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.75));
+    let id = date; while (all.some((p) => p.id === id)) id++;
+    await LIB.put({ id, name, date, blob, thumb, bright });
+    return id;
+  } catch { return null; }
+}
+
+function closeRefSheet() {
+  $('refThumbs').querySelectorAll('img').forEach((i) => URL.revokeObjectURL(i.src));
+  $('refThumbs').innerHTML = ''; $('refSheet').hidden = true;
+}
+
+/* ============================ 사진 비교 화면 ============================ */
+let libList = [], slotA = null, slotB = null, active = 'A', split = 50;
+let libMode = store.get('dc_cmp') === 'slide' ? 'slide' : 'side';
+const libUrls = new Map();
+function urlOf(p, thumb) {
+  const k = p.id + (thumb ? 't' : 'f');
+  if (!libUrls.has(k)) libUrls.set(k, URL.createObjectURL(thumb ? (p.thumb || p.blob) : p.blob));
+  return libUrls.get(k);
+}
+async function loadLib() {
+  libList = await LIB.all().catch(() => []);
+  const has = (id) => libList.some((p) => p.id === id);
+  if (!has(slotA)) slotA = libList[0]?.id ?? null;
+  if (!has(slotB)) slotB = libList[libList.length - 1]?.id ?? null;
+}
+async function openLib() { show('lib'); await loadLib(); renderLib(); }
+function closeLib() { libUrls.forEach((u) => URL.revokeObjectURL(u)); libUrls.clear(); show('home'); }
+// N개월 전과 가장 가까운 사진 (가장 최근 사진 기준)
+function photoMonthsAgo(n) {
+  if (libList.length < 2) return null;
+  const last = libList[libList.length - 1], target = last.date - n * 30 * DAY;
+  const older = libList.filter((p) => p.id !== last.id && last.date - p.date >= n * 30 * DAY - 5 * DAY);
+  if (!older.length) return null;
+  return older.reduce((a, b) => (Math.abs(b.date - target) < Math.abs(a.date - target) ? b : a));
+}
+function renderLib() {
+  const first = libList[0];
+  const A = libList.find((p) => p.id === slotA), B = libList.find((p) => p.id === slotB);
+  const label = (p) => (p ? `${fmtDate(p.date).slice(0, 10)} (${Math.floor((p.date - first.date) / DAY) + 1}일째)` : '-');
+  $('slotAd').textContent = label(A); $('slotBd').textContent = label(B);
+  $('slotA').classList.toggle('on', active === 'A'); $('slotB').classList.toggle('on', active === 'B');
+  $('mSide').classList.toggle('on', libMode === 'side'); $('mSlide').classList.toggle('on', libMode === 'slide');
+  const empty = !libList.length;
+  $('libEmpty').hidden = !empty;
+  $('cmpSide').hidden = empty || libMode !== 'side';
+  $('cmpSlide').hidden = empty || libMode !== 'slide';
+  const setImg = (id, p) => { if (p) $(id).src = urlOf(p); else $(id).removeAttribute('src'); };
+  setImg('imgA1', A); setImg('imgB1', B); setImg('imgA2', A); setImg('imgB2', B);
+  $('cmpSlide').style.setProperty('--split', split + '%');
+  document.querySelectorAll('#lib [data-months]').forEach((b) => { b.disabled = !photoMonthsAgo(Number(b.dataset.months)); });
+  $('libDel').disabled = !(active === 'A' ? A : B);
+  const strip = $('libStrip'); strip.innerHTML = '';
+  libList.slice().reverse().forEach((p) => {
+    const b = document.createElement('button');
+    b.className = (p.id === slotA ? 'a' : '') + (p.id === slotB ? ' b' : '');
+    const i = document.createElement('img'); i.src = urlOf(p, true); i.alt = p.name; i.loading = 'lazy';
+    const s = document.createElement('span'); s.textContent = fmtDate(p.date, true);
+    b.append(i, s);
+    if (p.id === slotA || p.id === slotB) { const t = document.createElement('i'); t.textContent = p.id === slotA ? '기준' : '비교'; b.appendChild(t); }
+    b.onclick = () => { if (active === 'A') slotA = p.id; else slotB = p.id; renderLib(); };
+    strip.appendChild(b);
+  });
+}
+$('pickLib').onclick = openLib;
+$('libBack').onclick = closeLib;
+$('slotA').onclick = () => { active = 'A'; renderLib(); };
+$('slotB').onclick = () => { active = 'B'; renderLib(); };
+$('mSide').onclick = () => { libMode = 'side'; store.set('dc_cmp', libMode); renderLib(); };
+$('mSlide').onclick = () => { libMode = 'slide'; store.set('dc_cmp', libMode); renderLib(); };
+document.querySelectorAll('#lib [data-months]').forEach((b) => {
+  b.onclick = () => {
+    const p = photoMonthsAgo(Number(b.dataset.months)); if (!p) return;
+    slotA = p.id; slotB = libList[libList.length - 1].id; active = 'A'; renderLib();
+  };
+});
+$('libDel').onclick = async () => {
+  const id = active === 'A' ? slotA : slotB, p = libList.find((x) => x.id === id); if (!p) return;
+  if (!confirm(`${fmtDate(p.date)} 사진을 앱 사진첩에서 지울까요?\n(갤러리에 저장된 사진 파일은 그대로 남습니다)`)) return;
+  await LIB.del(id).catch(() => {});
+  ['t', 'f'].forEach((k) => { const u = libUrls.get(id + k); if (u) { URL.revokeObjectURL(u); libUrls.delete(id + k); } });
+  await loadLib(); renderLib(); toast('앱 사진첩에서 지웠습니다');
+};
+$('libImport').onclick = () => $('libFile').click();
+$('libFile').onchange = async (e) => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  toast(`${files.length}장을 넣는 중…`, 10000);
+  let n = 0;
+  for (const f of files) { if (await libAdd(f, f.name, dateFromName(f.name, f.lastModified))) n++; }
+  await loadLib(); slotA = libList[0]?.id ?? null; slotB = libList[libList.length - 1]?.id ?? null; active = 'A';
+  renderLib(); toast(`${n}장을 앱 사진첩에 넣었습니다`);
+};
+// 슬라이드 비교: 화면을 좌우로 끌어 기준·비교 사진 경계를 움직임
+(() => {
+  const el = $('cmpSlide'); let drag = false;
+  const at = (e) => { const r = el.getBoundingClientRect(); split = Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)); el.style.setProperty('--split', split + '%'); };
+  el.addEventListener('pointerdown', (e) => { drag = true; el.setPointerCapture(e.pointerId); at(e); });
+  el.addEventListener('pointermove', (e) => { if (drag) at(e); });
+  ['pointerup', 'pointercancel'].forEach((ev) => el.addEventListener(ev, () => { drag = false; }));
+})();
+
 /* ============================ 뒤로가기 버튼 ============================ */
 // 폰의 뒤로가기를 누르면 앱이 바로 닫히지 않도록: 열린 창 닫기 → 촬영 화면에서 첫 화면으로 → 첫 화면에서는 한 번 더 눌러야 종료
 let backArmed = false, backTimer = null;
@@ -781,6 +1024,9 @@ addEventListener('popstate', () => {
   else if (!$('netHelp').hidden) $('netHelp').hidden = true;
   else if (!$('saveSheet').hidden) closeSaveSheet();
   else if (!$('installHelp').hidden) $('installHelp').hidden = true;
+  else if (!$('refSheet').hidden) closeRefSheet();
+  else if (!$('checkSheet').hidden) $('checkSheet').hidden = true;
+  else if (!$('lib').hidden) closeLib();
   else if (mode) goHome();
   else if (!backArmed) {
     backArmed = true;
