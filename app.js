@@ -894,6 +894,97 @@ function dateFromName(n, fallback) {
   const m = /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(n || '');
   return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : (fallback || Date.now());
 }
+// 사진 오른쪽 아래에 앱이 찍어 넣은 "20261018 160412" 글자를 읽어 촬영 일시로 씀
+// (같은 글꼴로 숫자 모양을 그려 놓고 한 글자씩 맞춰 보는 방식, 인터넷 없이 폰 안에서 처리)
+async function dateFromStamp(blob) {
+  const FONT = (px) => `700 ${px}px Pretendard, "Pretendard Variable", sans-serif`;
+  try { await document.fonts.load(FONT(28), '0123456789'); } catch {}
+  const bmp = await createImageBitmap(blob);
+  const W = bmp.width, H = bmp.height;
+  const fs0 = Math.max(14, Math.round(Math.min(W, H) * 0.04)), pad0 = Math.round(fs0 * 0.6);
+  const N = 28, k = N / fs0;
+  const sw = fs0 * 11, sh = pad0 + fs0 * 1.7;
+  const cw = Math.round(sw * k), ch = Math.round(sh * k);
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(bmp, W - sw, H - sh, sw, sh, 0, 0, cw, ch); bmp.close?.();
+  const L = lumaArr(g.getImageData(0, 0, cw, ch).data);
+  let best = null;
+  for (const s of [0.9, 0.95, 1, 1.05, 1.1]) {
+    const F = N * s, lw = Math.max(3 * k, F * 0.18), padK = pad0 * k * s;
+    const tpl = [];
+    const m = document.createElement('canvas').getContext('2d'); m.font = FONT(F);
+    for (let d = 0; d < 10; d++) {
+      const adv = m.measureText(String(d)).width;
+      const tw = Math.ceil(adv + lw + 2), th = ch;
+      const t = document.createElement('canvas'); t.width = tw; t.height = th;
+      const tg = t.getContext('2d', { willReadFrequently: true });
+      const draw = (bg) => {
+        tg.clearRect(0, 0, tw, th);
+        if (bg) { tg.fillStyle = bg; tg.fillRect(0, 0, tw, th); }
+        tg.font = FONT(F); tg.textAlign = 'left'; tg.textBaseline = 'bottom'; tg.lineJoin = 'round'; tg.lineWidth = lw;
+        tg.strokeStyle = 'rgba(0,0,0,0.75)'; tg.strokeText(String(d), lw / 2 + 1, th - padK);
+        tg.fillStyle = '#fff'; tg.fillText(String(d), lw / 2 + 1, th - padK);
+        return tg.getImageData(0, 0, tw, th).data;
+      };
+      const a = draw(null), v = draw('#808080');
+      const px = [];
+      for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+        const i = (y * tw + x) * 4;
+        if (a[i + 3] > 80) px.push(x, y, v[i] * 0.3 + v[i + 1] * 0.59 + v[i + 2] * 0.11);
+      }
+      let mu = 0; for (let j = 2; j < px.length; j += 3) mu += px[j]; mu /= px.length / 3;
+      let vv = 0; for (let j = 2; j < px.length; j += 3) vv += (px[j] - mu) ** 2;
+      tpl.push({ adv, off: lw / 2 + 1, px, mu, sd: Math.sqrt(vv) || 1 });
+    }
+    const space = m.measureText(' ').width;
+    const ncc = (T, ox, oy) => {
+      const P = T.px, n = P.length / 3; let sp = 0, sq = 0, sc = 0;
+      for (let j = 0; j < P.length; j += 3) {
+        const x = P[j] + ox, y = P[j + 1] + oy;
+        const l = x >= 0 && y >= 0 && x < cw && y < ch ? L[y * cw + x] : 0;
+        sp += l; sq += l * l; sc += l * (P[j + 2] - T.mu);
+      }
+      const sdI = Math.sqrt(Math.max(1e-6, sq - sp * sp / n));
+      return sc / (sdI * T.sd);
+    };
+    let cur = cw - padK, digits = '', sum = 0, oyPrev = 0;
+    for (let i = 0; i < 14; i++) {
+      if (i === 6) cur -= space;
+      let bb = null;
+      for (let d = 0; d < 10; d++) {
+        const T = tpl[d], left = cur - T.adv;
+        for (let dx = -3; dx <= 3; dx++) for (let dy = -4; dy <= 4; dy++) {
+          const ox = Math.round(left - T.off + dx), sc = ncc(T, ox, dy + (i ? oyPrev : 0));
+          if (!bb || sc > bb.sc) bb = { d, sc, dx, dy };
+        }
+      }
+      if (i === 0) oyPrev = bb.dy; // 첫 글자에서 찾은 높이를 나머지에 적용(±4px 더 찾음)
+      else oyPrev += bb.dy;
+      digits = bb.d + digits; sum += bb.sc; cur = cur - tpl[bb.d].adv + bb.dx;
+    }
+    const score = sum / 14;
+    if (!best || score > best.score) best = { digits, score, s };
+  }
+  const t = best.digits;
+  const Y = +t.slice(0, 4), Mo = +t.slice(4, 6), D = +t.slice(6, 8), h = +t.slice(8, 10), mi = +t.slice(10, 12), se = +t.slice(12, 14);
+  const ok = best.score > 0.55 && Y >= 2020 && Y <= 2099 && Mo >= 1 && Mo <= 12 && D >= 1 && D <= 31 && h < 24 && mi < 60 && se < 60;
+  const date = ok ? new Date(Y, Mo - 1, D, h, mi, se) : null;
+  if (date && date.getDate() !== D) return { ok: false, ...best };
+  return { ok, date: date && date.getTime(), ...best };
+}
+function lumaArr(d) {
+  const L = new Float32Array(d.length / 4);
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) L[j] = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+  return L;
+}
+// 촬영 일시 찾기: 파일 이름(연월일_시분초) → 사진 속 날짜 글자 → 파일 날짜(부정확) 순서
+async function findDate(blob, name, fallback) {
+  const m = /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(name || '');
+  if (m) return { date: new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime(), src: 'name' };
+  try { const r = await dateFromStamp(blob); if (r.ok) return { date: r.date, src: 'stamp' }; } catch {}
+  return { date: fallback || Date.now(), src: 'file' };
+}
 // 영역의 평균 밝기(0~255)와 하얗게 날아간 비율
 function lumaOf(g, x, y, w, h) {
   const d = g.getImageData(x, y, Math.max(1, w), Math.max(1, h)).data;
@@ -901,11 +992,11 @@ function lumaOf(g, x, y, w, h) {
   for (let i = 0; i < d.length; i += 8) { const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11; s += l; n++; if (l > 245) hi++; }
   return { mean: s / n, clip: hi / n };
 }
-async function libAdd(blob, name, date) {
+async function libAdd(blob, name, date, src = 'name') {
   try {
     navigator.storage?.persist?.().catch(() => {});
     const all = await LIB.all();
-    const dup = all.find((p) => p.name === name && Math.abs(p.date - date) < 1000);
+    const dup = all.find((p) => Math.abs(p.date - date) < 1000 && (p.name === name || p.blob?.size === blob.size));
     if (dup) return dup.id;
     const bmp = await createImageBitmap(blob);
     const tw = 240, th = Math.max(1, Math.round(bmp.height * tw / bmp.width));
@@ -914,7 +1005,7 @@ async function libAdd(blob, name, date) {
     const bright = lumaOf(g, tw / 4 | 0, th / 4 | 0, tw / 2 | 0, th / 2 | 0).mean;
     const thumb = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.75));
     let id = date; while (all.some((p) => p.id === id)) id++;
-    await LIB.put({ id, name, date, blob, thumb, bright });
+    await LIB.put({ id, name, date, src, blob, thumb, bright });
     return id;
   } catch { return null; }
 }
@@ -939,8 +1030,28 @@ async function loadLib() {
   if (!has(slotA)) slotA = libList[0]?.id ?? null;
   if (!has(slotB)) slotB = libList[libList.length - 1]?.id ?? null;
 }
-async function openLib() { show('lib'); await loadLib(); renderLib(); }
-function closeLib() { libUrls.forEach((u) => URL.revokeObjectURL(u)); libUrls.clear(); show('home'); }
+let selMode = false; const sel = new Set();
+// 예전에 불러온 사진 중 날짜를 파일 날짜로 잡은 것은 사진 속 날짜 글자로 다시 읽음 (한 번만)
+async function fixOldDates() {
+  const todo = libList.filter((p) => !p.src && !/\d{8}_\d{6}/.test(p.name || ''));
+  if (!todo.length) return false;
+  toast(`사진 속 날짜를 읽는 중… (${todo.length}장)`, 15000);
+  let n = 0;
+  for (const p of todo) {
+    const r = await findDate(p.blob, p.name, p.date);
+    if (r.src === 'stamp') n++;
+    p.date = r.date; p.src = r.src;
+    await LIB.put(p).catch(() => {});
+  }
+  toast(`${n}장의 날짜를 사진 속 글자로 고쳤습니다`);
+  return true;
+}
+async function openLib() {
+  show('lib'); selMode = false; sel.clear();
+  await loadLib(); renderLib();
+  if (await fixOldDates()) { await loadLib(); slotA = libList[0]?.id ?? null; slotB = libList[libList.length - 1]?.id ?? null; active = 'A'; renderLib(); }
+}
+function closeLib() { libUrls.forEach((u) => URL.revokeObjectURL(u)); libUrls.clear(); selMode = false; sel.clear(); show('home'); }
 // N개월 전과 가장 가까운 사진 (가장 최근 사진 기준)
 function photoMonthsAgo(n) {
   if (libList.length < 2) return null;
@@ -952,9 +1063,9 @@ function photoMonthsAgo(n) {
 function renderLib() {
   const first = libList[0];
   const A = libList.find((p) => p.id === slotA), B = libList.find((p) => p.id === slotB);
-  const label = (p) => (p ? `${fmtDate(p.date).slice(0, 10)} (${Math.floor((p.date - first.date) / DAY) + 1}일째)` : '-');
+  const label = (p) => (p ? `${fmtDate(p.date).slice(0, 10)} (${Math.floor((p.date - first.date) / DAY) + 1}일째)${p.src === 'file' ? ' · 날짜 추정' : ''}` : '-');
   $('slotAd').textContent = label(A); $('slotBd').textContent = label(B);
-  $('slotA').classList.toggle('on', active === 'A'); $('slotB').classList.toggle('on', active === 'B');
+  $('slotA').classList.toggle('on', active === 'A' && !selMode); $('slotB').classList.toggle('on', active === 'B' && !selMode);
   $('mSide').classList.toggle('on', libMode === 'side'); $('mSlide').classList.toggle('on', libMode === 'slide');
   const empty = !libList.length;
   $('libEmpty').hidden = !empty;
@@ -964,47 +1075,76 @@ function renderLib() {
   setImg('imgA1', A); setImg('imgB1', B); setImg('imgA2', A); setImg('imgB2', B);
   $('cmpSlide').style.setProperty('--split', split + '%');
   document.querySelectorAll('#lib [data-months]').forEach((b) => { b.disabled = !photoMonthsAgo(Number(b.dataset.months)); });
-  $('libDel').disabled = !(active === 'A' ? A : B);
+  $('libQuick').hidden = selMode; $('libSelBar').hidden = !selMode;
+  $('libSelMode').disabled = empty;
+  $('libSelDel').textContent = `${sel.size}장 삭제`; $('libSelDel').disabled = !sel.size;
+  $('libSelAll').textContent = sel.size && sel.size === libList.length ? '선택 해제' : '전체 선택';
+  $('libHint').innerHTML = empty ? '' : selMode
+    ? '지울 사진을 눌러 고르세요 (갤러리에 저장된 파일은 그대로 남습니다)'
+    : active === 'A' ? '아래에서 <b class="ya">기준(노랑)</b> 사진을 고르세요' : '아래에서 <b class="gb">비교(초록)</b> 사진을 고르세요';
   const strip = $('libStrip'); strip.innerHTML = '';
+  strip.classList.toggle('selecting', selMode);
   libList.slice().reverse().forEach((p) => {
     const b = document.createElement('button');
-    b.className = (p.id === slotA ? 'a' : '') + (p.id === slotB ? ' b' : '');
+    b.className = selMode ? (sel.has(p.id) ? 'x' : '') : (p.id === slotA ? 'a' : '') + (p.id === slotB ? ' b' : '');
     const i = document.createElement('img'); i.src = urlOf(p, true); i.alt = p.name; i.loading = 'lazy';
-    const s = document.createElement('span'); s.textContent = fmtDate(p.date, true);
-    b.append(i, s);
-    if (p.id === slotA || p.id === slotB) { const t = document.createElement('i'); t.textContent = p.id === slotA ? '기준' : '비교'; b.appendChild(t); }
-    b.onclick = () => { if (active === 'A') slotA = p.id; else slotB = p.id; renderLib(); };
+    const sp = document.createElement('span'); sp.textContent = fmtDate(p.date, true);
+    b.append(i, sp);
+    if (selMode) { if (sel.has(p.id)) { const t = document.createElement('i'); t.textContent = '✓'; b.appendChild(t); } }
+    else if (p.id === slotA || p.id === slotB) { const t = document.createElement('i'); t.textContent = p.id === slotA ? '기준' : '비교'; b.appendChild(t); }
+    b.onclick = () => {
+      if (selMode) { sel.has(p.id) ? sel.delete(p.id) : sel.add(p.id); }
+      else if (active === 'A') { slotA = p.id; active = 'B'; } // 기준을 고르면 바로 비교 칸으로 넘어감
+      else slotB = p.id;
+      renderLib();
+    };
     strip.appendChild(b);
   });
 }
 $('pickLib').onclick = openLib;
 $('libBack').onclick = closeLib;
-$('slotA').onclick = () => { active = 'A'; renderLib(); };
-$('slotB').onclick = () => { active = 'B'; renderLib(); };
+$('slotA').onclick = () => { selMode = false; active = 'A'; renderLib(); };
+$('slotB').onclick = () => { selMode = false; active = 'B'; renderLib(); };
 $('mSide').onclick = () => { libMode = 'side'; store.set('dc_cmp', libMode); renderLib(); };
 $('mSlide').onclick = () => { libMode = 'slide'; store.set('dc_cmp', libMode); renderLib(); };
 document.querySelectorAll('#lib [data-months]').forEach((b) => {
   b.onclick = () => {
     const p = photoMonthsAgo(Number(b.dataset.months)); if (!p) return;
-    slotA = p.id; slotB = libList[libList.length - 1].id; active = 'A'; renderLib();
+    slotA = p.id; slotB = libList[libList.length - 1].id; active = 'B'; renderLib();
   };
 });
-$('libDel').onclick = async () => {
-  const id = active === 'A' ? slotA : slotB, p = libList.find((x) => x.id === id); if (!p) return;
-  if (!confirm(`${fmtDate(p.date)} 사진을 앱 사진첩에서 지울까요?\n(갤러리에 저장된 사진 파일은 그대로 남습니다)`)) return;
-  await LIB.del(id).catch(() => {});
-  ['t', 'f'].forEach((k) => { const u = libUrls.get(id + k); if (u) { URL.revokeObjectURL(u); libUrls.delete(id + k); } });
-  await loadLib(); renderLib(); toast('앱 사진첩에서 지웠습니다');
+// 여러 장 삭제
+$('libSelMode').onclick = () => { selMode = true; sel.clear(); renderLib(); };
+$('libSelCancel').onclick = () => { selMode = false; sel.clear(); renderLib(); };
+$('libSelAll').onclick = () => {
+  if (sel.size === libList.length) sel.clear(); else libList.forEach((p) => sel.add(p.id));
+  renderLib();
+};
+$('libSelDel').onclick = async () => {
+  if (!sel.size) return;
+  const all = sel.size === libList.length;
+  if (!confirm(`${all ? '사진 전체' : '고른 사진'} ${sel.size}장을 앱 사진첩에서 지울까요?\n(갤러리에 저장된 사진 파일은 그대로 남습니다)`)) return;
+  const n = sel.size;
+  for (const id of sel) {
+    await LIB.del(id).catch(() => {});
+    ['t', 'f'].forEach((k) => { const u = libUrls.get(id + k); if (u) { URL.revokeObjectURL(u); libUrls.delete(id + k); } });
+  }
+  sel.clear(); selMode = false;
+  await loadLib(); renderLib(); toast(`${n}장을 앱 사진첩에서 지웠습니다`);
 };
 $('libImport').onclick = () => $('libFile').click();
 $('libFile').onchange = async (e) => {
   const files = [...e.target.files]; e.target.value = '';
   if (!files.length) return;
-  toast(`${files.length}장을 넣는 중…`, 10000);
-  let n = 0;
-  for (const f of files) { if (await libAdd(f, f.name, dateFromName(f.name, f.lastModified))) n++; }
+  let n = 0, guess = 0, i = 0;
+  for (const f of files) {
+    toast(`사진 넣는 중… ${++i}/${files.length}`, 15000);
+    const r = await findDate(f, f.name, f.lastModified);
+    if (await libAdd(f, f.name, r.date, r.src)) { n++; if (r.src === 'file') guess++; }
+  }
   await loadLib(); slotA = libList[0]?.id ?? null; slotB = libList[libList.length - 1]?.id ?? null; active = 'A';
-  renderLib(); toast(`${n}장을 앱 사진첩에 넣었습니다`);
+  renderLib();
+  toast(`${n}장을 넣었습니다` + (guess ? ` · ${guess}장은 사진 속 날짜를 못 읽어 파일 날짜로 넣었습니다` : ''), 4000);
 };
 // 슬라이드 비교: 화면을 좌우로 끌어 기준·비교 사진 경계를 움직임
 (() => {

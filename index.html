@@ -191,6 +191,10 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 .libstrip .b img{border-color:var(--ok)}
 .libstrip i{position:absolute;top:4px;left:4px;font-style:normal;font-size:10px;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--warn);color:#111}
 .libstrip .b i{background:var(--ok)}
+.libhint{margin:0;font-size:12.5px;color:var(--dim);min-height:16px}
+.libhint .ya{color:var(--warn)} .libhint .gb{color:var(--ok)}
+.libstrip.selecting .x img{border-color:var(--rec);opacity:.6}
+.libstrip.selecting .x i{background:var(--rec);color:#fff;font-size:12px}
 .role-lib{grid-column:1/-1}
 .strip img{flex:none;width:58px;height:58px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
 .strip img:first-child{border-color:var(--ok)}
@@ -269,7 +273,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <p class="help" id="installHelp" hidden>설치 창이 안 뜨면 브라우저 메뉴에서 설치하세요.<br><b>크롬</b>: 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b><br><b>삼성 인터넷</b>: 아래쪽 ≡ → <b>현재 페이지 추가</b> → <b>홈 화면</b><br><b>아이폰·아이패드 사파리</b>: 공유 버튼(□↑) → <b>홈 화면에 추가</b></p>
   </div>
   </div>
-  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v33</p>
+  <p class="copy">© 2026 티제이컴퍼니. All rights reserved. · v34</p>
 </section>
 
 <!-- 카메라폰 -->
@@ -358,7 +362,9 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
     <div class="slide" id="cmpSlide" hidden><img id="imgA2" alt="기준 사진"><img id="imgB2" alt="비교 사진" class="top"><div class="handle"></div></div>
     <p class="empty" id="libEmpty" hidden>아직 사진이 없습니다.<br>촬영하면 자동으로 여기에 모이고,<br>예전 사진은 위의 「사진 불러오기」로 갤러리에서 넣을 수 있습니다.</p>
   </div>
-  <div class="quick"><button class="chip" data-months="1">1개월 전</button><button class="chip" data-months="3">3개월 전</button><button class="chip" data-months="6">6개월 전</button><button class="chip danger" id="libDel">삭제</button></div>
+  <div class="quick" id="libQuick"><button class="chip" data-months="1">1개월 전</button><button class="chip" data-months="3">3개월 전</button><button class="chip" data-months="6">6개월 전</button><button class="chip danger" id="libSelMode">삭제</button></div>
+  <div class="quick" id="libSelBar" hidden><button class="chip" id="libSelAll">전체 선택</button><button class="chip danger" id="libSelDel" disabled>0장 삭제</button><button class="chip" id="libSelCancel">취소</button></div>
+  <p class="libhint" id="libHint"></p>
   <div class="libstrip" id="libStrip"></div>
   <input type="file" id="libFile" accept="image/*" multiple hidden>
 </section>
@@ -416,6 +422,6 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backgr
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 </body>
 </html>
